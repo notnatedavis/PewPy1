@@ -76,32 +76,22 @@ _MacOS_
 
 ## Project-Structure
 PewPy/
-- config/
-   - `default.yaml`
-   - `performance.yaml`
+- logs/
 - src/
    - core/
       - `__init__.py`
-      - `frame_pipeline.py`
-      - `performance_moniter.py`
-      - `resource_manager.py`
-      - `task_dispatcher.py`
+      - `app_manager.py`
+      - `thread_manager.py`
    - ui/
       - `__init__.py`
-      - `config_manager.py`
-      - `hotkey_handler.py`
-      - `overlay.py`
+      - `main_window.py`
    - utils/
       - `__init__.py`
-      - `profiling.py`
-      - `serialization.py`
-      - `shared_memory.py`
+      - `system_utils.py`
    - workers/
       - `__init__.py`
-      - `input_controller.py`
-      - `safety_moniter.py`
-      - `screen_capturer.py`
-      - `target_detector.py`
+      - `auto_clicker.py`
+      - `function_worker.py`
    - `main.py`
 - `.gitignore`
 - `ReadMe.md`
