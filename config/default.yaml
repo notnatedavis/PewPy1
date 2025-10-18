@@ -1,0 +1,36 @@
+#   config/default.yaml
+#   PewPy - Default Configuration
+
+application:
+  name: "PewPy Aimbot"
+  version: "1.0.0"
+  debug: false
+
+capture:
+  region: [0, 0, 1920, 1080]  # x, y, width, height
+  target_fps: 240
+  roi: [760, 340, 400, 400]   # Region of Interest
+
+detection:
+  lower_hsv: [0, 100, 100]    # H, S, V
+  upper_hsv: [10, 255, 255]
+  confidence_threshold: 0.7
+  scale_factor: 0.5
+
+input:
+  smoothing_steps: 8
+  prediction_factor: 0.1
+  step_delay_ms: 1
+
+safety:
+  toggle_hotkey: "F2"
+  emergency_hotkey: "F10"
+  exit_hotkey: "F12"
+  cooldown_ms: 50
+
+ui:
+  overlay_enabled: true
+  overlay_position: [10, 10]  # x, y
+  overlay_theme: "dark"
+  show_fps: true
+  show_detection: true

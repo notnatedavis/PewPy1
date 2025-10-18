@@ -1,0 +1,27 @@
+# PewPy Requirements for Python 3.13
+# Optimized for high-performance threading & multiprocessing
+
+# Core computer vision
+opencv-python>=4.8.0
+numpy>=1.24.0
+
+# Configuration
+pyyaml>=6.0
+
+# Input handling
+pynput>=1.7.6
+
+# System monitoring
+psutil>=5.9.0
+
+# Image processing
+pillow>=10.0.0
+
+# Cross-platform screen capture (primary)
+mss>=9.0.0
+
+# Windows-specific enhancements
+pywin32>=306; platform_system == "Windows"
+
+# DirectX screen capture (Windows, may have limited 3.13 support)
+dxcam==0.0.5; platform_system == "Windows"

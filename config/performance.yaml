@@ -1,0 +1,26 @@
+#   config/performance.yaml
+#   PewPy - Performance Optimization Settings
+
+performance:
+  mode: "balanced"  # balanced, performance, power_saving
+  target_fps: 144
+  max_cpu_usage: 80
+  max_memory_mb: 512
+
+multiprocessing:
+  cpu_workers: 4
+  io_workers: 8
+  use_gpu: true
+  shared_memory_size: 100  # MB
+
+optimization:
+  enable_memory_views: true
+  reuse_buffers: true
+  pre_allocate_buffers: true
+  enable_jit: false
+
+monitoring:
+  track_fps: true
+  track_latency: true
+  track_memory: true
+  log_interval: 5  # seconds
