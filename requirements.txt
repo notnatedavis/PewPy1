@@ -1,5 +1,6 @@
 # PewPy Requirements for Python 3.13
 # Optimized for high-performance threading & multiprocessing
+customtkinter>=5.2.0  # Modern UI components
 
 # Core computer vision (UPDATE)
 opencv-python>=4.8.0

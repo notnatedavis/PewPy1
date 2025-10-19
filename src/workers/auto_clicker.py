@@ -44,5 +44,8 @@ class AutoClicker(BaseWorker) :
         finally :
             logging.info("Auto-clicker stopped")
             
-    def set_interval(self, interval: float):
-        self.click_interval = max(0.01, interval)  # Minimum 10ms interval
+    # Add this method to your existing AutoClicker class
+def set_interval(self, interval: float):
+    """Update click interval (thread-safe)"""
+    self.click_interval = max(0.01, interval)  # Minimum 10ms interval
+    logging.debug(f"Auto-clicker interval updated to {interval}s")
