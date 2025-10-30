@@ -17,13 +17,14 @@ class PewPyApplication :
         self.workers = {}
         self.thread_manager = ThreadManager()
         
-        # Initialize workers
+        # initialize workers
         self._initialize_workers()
         
     def _initialize_workers(self) :
-        # Initialize all toggleable function workers
+        # initialize all toggleable function workers
         self.workers['auto_clicker'] = AutoClicker()
-        # Add more workers here as needed
+        
+        # add more workers here as needed
         
     def start_worker(self, worker_name: str) -> bool :
         # start a specific worker

@@ -21,16 +21,30 @@ def setup_logging() :
     # setup application logging
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        format='%(levelname)s - %(message)s',
         handlers=[
             logging.FileHandler('pewpy.log'),
             logging.StreamHandler(sys.stdout)
         ]
     )
 
-def signal_handler(signum, frame):
+def signal_handler(signum, frame) :
     logging.info("Received shutdown signal")
     sys.exit(0)
+
+def debug_auto_clicker(self) :
+    # debug method to check auto-clicker status
+    try :
+        worker = self.app.workers['auto_clicker']
+        logging.info(f"AutoClicker debug - running: {worker.running}, interval: {worker.click_interval}")
+        logging.info(f"Thread running: {self.app.is_worker_running('auto_clicker')}")
+        logging.info(f"PYNPUT available: {hasattr(worker, 'mouse') and worker.mouse is not None}")
+    except Exception as e :
+        logging.error(f"Debug error: {e}")
+
+# call this temporarily in your toggle_auto_clicker method:
+def toggle_auto_clicker(self):
+    self.debug_auto_clicker()  # Temporary debug
 
 def main() :
     # main entry point

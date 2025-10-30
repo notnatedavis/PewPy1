@@ -27,25 +27,37 @@ def get_platform_info() -> Dict[str, Any] :
         "memory": psutil.virtual_memory().total if PSUTIL_AVAILABLE else None
     }
 
+    # add psutil metrics if available
+    if PSUTIL_AVAILABLE :
+        info.update({
+            "cores": psutil.cpu_count(),
+            "memory": psutil.virtual_memory().total
+        })
+    
+    return info
+
 def optimize_process_priority() -> bool :
-    # Optimize process priority for better performance
-    
+    # optimize process priority for performance with safe fallbacks
+    if not PSUTIL_AVAILABLE :
+        logging.debug("psutil unavailable - skipping priority optimization")
+        return False
+        
     try :
-        if PSUTIL_AVAILABLE :
-            current_process = psutil.Process()
+        current_process = psutil.Process()
+        system = platform.system()
+        
+        if system == "Windows" :
+            current_process.nice(psutil.HIGH_PRIORITY_CLASS)
+        else :  # Linux, Darwin, etc.
+            current_process.nice(-10)  # Lower nice value = higher priority
             
-            # Set high priority (be careful with this)
-            if platform.system() == "Windows" :
-                current_process.nice(psutil.HIGH_PRIORITY_CLASS)
-            else :
-                current_process.nice(-10)  # Lower nice value = higher priority
-                
-            logging.info("Process priority optimized")
-            return True
+        logging.info("Process priority optimized successfully")
+
+        return True
+        
     except Exception as e :
-        logging.warning(f"Could not optimize process priority: {e}")
-    
-    return False
+        logging.warning(f"Process priority optimization failed: {e}")
+        return False
 
 def check_system_compatibility() -> Tuple[bool, str] :
     # Check if system meets requirements
