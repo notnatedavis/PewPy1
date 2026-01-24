@@ -1,11 +1,10 @@
 #   src/workers/__init__.py
-#   Worker classes for toggleable functions
+#   Worker classes for toggleable functions - Simplified to avoid circular imports
 
-# ----- Imports ----- #
+# Import only BaseWorker here, import specific workers lazily
 from .function_worker import BaseWorker
-from .auto_clicker import AutoClicker
 
 __all__ = [
-    "BaseWorker",
-    "AutoClicker"
+    "BaseWorker"
+    # Note: Other workers are imported lazily to avoid circular imports
 ]

@@ -1,28 +1,29 @@
 # PewPy Requirements for Python 3.13
 # Optimized for high-performance threading & multiprocessing
-customtkinter>=5.2.0  # Modern UI components
 
-# Core computer vision (UPDATE)
-opencv-python>=4.8.0
-numpy>=1.24.0
+# Core UI
+customtkinter>=5.2.0
 
-# Configuration (UPDATE)
-pyyaml>=6.0 
-
-# Input handling
+# Core dependencies
 pynput>=1.7.6
+pygame>=2.5.0
+numpy>=2.0.0
 
-# System monitoring
+# Computer Vision (optional)
+opencv-python>=4.8.0  # Optional for aimbot features
+
+# System utilities
 psutil>=5.9.0
-
-# Image processing (UPDATE)
 pillow>=10.0.0
 
-# Cross-platform screen capture (primary)
+# Screen Capture - Use available version
+dxcam==0.0.5; platform_system == "Windows"
+
+# Cross-platform screen capture fallback
 mss>=9.0.0
 
-# Windows-specific enhancements
+# Windows-specific (optional)
 pywin32>=306; platform_system == "Windows"
 
-# DirectX screen capture (Windows, may have limited 3.13 support)
-dxcam==0.0.5; platform_system == "Windows"
+# Development tools (optional)
+# pyyaml>=6.0

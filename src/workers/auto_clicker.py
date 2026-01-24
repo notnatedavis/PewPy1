@@ -1,79 +1,90 @@
 #   src/workers/auto_clicker.py
-#   auto-click functionality worker implementation
+#   Auto-click functionality worker
 
 # ----- Imports ----- #
 import threading
 import time
 import logging
-from typing import Optional
-from workers.function_worker import BaseWorker
+from .function_worker import BaseWorker
 try : 
     import pynput
     from pynput.mouse import Button, Controller as MouseController
-    from pynput.keyboard import Listener as KeyboardListener
     PYNPUT_AVAILABLE = True
 except ImportError :
     PYNPUT_AVAILABLE = False
     logging.warning("pynput not available - auto-clicker disabled")
 
-# ----- Main Class Application ----- #
 class AutoClicker(BaseWorker) :
     # Auto-clicker worker with configurable settings
     
-    def __init__(self, click_interval: float = 0.1, button: Button = Button.left) :
-        super().__init__()
-        self.click_interval = click_interval
-        self.button = button
-        self.mouse = MouseController() if PYNPUT_AVAILABLE else None
-        self._interval_lock = threading.Lock()  # thread safety for interval updates
+    def __init__(self, click_interval: float = 0.1, button: str = "left") -> None :
+        super().__init__(name="AutoClicker")
         
-    def _work(self) :
-        # Main auto-clicker loop - runs continuously until stop() is called
+        self.click_interval = max(0.01, min(10.0, click_interval))
+        self.button_name = button
+        
+        # map button names
+        self._button_map = {
+            "left": Button.left if PYNPUT_AVAILABLE else None,
+            "right": Button.right if PYNPUT_AVAILABLE else None,
+            "middle": Button.middle if PYNPUT_AVAILABLE else None
+        }
+        
+        self.button = self._button_map.get(button, Button.left if PYNPUT_AVAILABLE else None)
+        self.mouse = MouseController() if PYNPUT_AVAILABLE else None
+        
+        # thread-safe interval updates
+        self._interval_lock = threading.Lock()
+        self._last_click_time = 0.0
+        self._click_count = 0
+        
+        logging.info(f"AutoClicker initialized: interval={self.click_interval}s")
+    
+    def _work_cycle(self) -> None :
+        # Main auto-clicker loop
         if not PYNPUT_AVAILABLE :
             logging.error("Auto-clicker requires pynput")
+            self.stop()
             return
         
-        logging.info(f"Auto-clicker started (interval: {self.click_interval}s)")
+        current_time = time.time()
+        
+        # get current interval
+        with self._interval_lock :
+            interval = self.click_interval
+        
+        # check if time to click
+        if current_time - self._last_click_time >= interval :
+            try :
+                if self.mouse :
+                    self.mouse.click(self.button)
+                    self._last_click_time = current_time
+                    self._click_count += 1
+                    
+            except Exception as e :
+                logging.error(f"Mouse click failed: {e}")
+                time.sleep(min(interval * 2, 1.0))
+        
+        # adaptive sleep
+        next_click_in = max(0, interval - (time.time() - self._last_click_time))
+        if next_click_in > 0.001 :
+            time.sleep(min(next_click_in, 0.1))
     
+    def set_interval(self, interval: float) -> None :
+        # update click interval
         try :
-            last_click_time = 0
-            while self.running :
-                current_time = time.time()
+            interval_float = float(interval)
             
-                # get current interval thread-safely
-                with self._interval_lock :
-                    interval = self.click_interval
+            # validate and clamp
+            interval_float = max(0.01, min(10.0, interval_float))
             
-                # click if enough time has passed
-                if current_time - last_click_time >= interval :
-                    if self.mouse :
-                        try :
-                            self.mouse.click(self.button)
-                            last_click_time = current_time
-                        except Exception as e :
-                            logging.error(f"Mouse click failed: {e}")
-                            # don't break the loop on click errors
-
-                # small sleep to prevent CPU spinning but remain responsive
-                time.sleep(0.01)  # 10ms sleep for better responsiveness
-
-        except Exception as e :
-            logging.error(f"Auto-clicker error: {e}")
-        finally :
-            logging.info("Auto-clicker stopped")
-    
-    def set_interval(self, interval: float) :
-        # Update click interval (thread-safe)
-        try :
-            interval = float(interval)
-            # Validate interval range
-            if interval < 0.01 :  # Minimum 10ms
-                interval = 0.01
-            elif interval > 10.0 :  # Maximum 10 seconds
-                interval = 10.0
-                
+            # update thread-safely
             with self._interval_lock :
-                self.click_interval = interval
-            logging.debug(f"Auto-clicker interval updated to {interval}s")
-        except (ValueError, TypeError) as e:
-            logging.error(f"Invalid interval {interval}: {e}")
+                old_interval = self.click_interval
+                self.click_interval = interval_float
+            
+            logging.info(f"Auto-clicker interval updated: {old_interval}s -> {interval_float}s")
+            
+        except (ValueError, TypeError) as e :
+            logging.error(f"Invalid interval: {e}")
+            raise ValueError(f"Interval must be a number between 0.01 and 10.0")
