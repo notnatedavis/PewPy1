@@ -16,21 +16,24 @@ PewPy is a sophisticated aimbot application built with Python 3.13, designed for
 
 ## Features
 
-- High-Performance Screen Capture: DirectX desktop duplication API for minimal latency
-- GPU-Accelerated Detection: OpenCV with CUDA support for real-time target detection
-- Adaptive Resource Management: Dynamic CPU/GPU utilization based on system load
-- Real-time Overlay: Tkinter-based overlay with performance metrics and controls
-- Configuration Hot-Reload: Live configuration updates without restart
-- Python 3.13 Optimized: Leverages new multiprocessing and GIL improvements
+- **High-Performance Screen Capture**: DirectX desktop duplication (dxcam) for minimal latency.
+- **GPU-Accelerated Detection**: OpenCV with CUDA support.
+- **Adaptive Resource Management**: Dynamically adjusts capture FPS based on CPU load.
+- **Python 3.13 No‑GIL Support**: Automatically detects free-threaded builds and optimizes execution.
+- **Modular Concurrency**: Pluggable executors (thread/process) for CPU‑bound stages.
+- **Configuration Hot-Reload**: YAML-based settings with live updates.
 
 ## Usage 
-_Windows_
-1. within IDE's terminal create a virtual environment `python -m venv venv`
-2. activate the virtual environment with `venv\Scripts\activate` , should show `(venv)` if not try killing the terminal and opening a new one
-3. launch main locally
-   1. install dependencies , `pip install -r requirements.txt`
-   2.  `python src/main.py` to launch main application
 
+_Windows_
+1. git clone repo & cd in
+2. create virtual environment `python -m venv venv`
+3. activate the virtual environment with `venv\Scripts\activate` , should show `(venv)` if not try killing the terminal and opening a new one
+   - upgrade pip (good practice) `python -m pip install --upgrade pip`
+   - install dependencies `pip install -r requirements.txt`
+   - verify python has `--disable-gil` (experimental free‑threaded mode) important for the project , check with `python -c "import sys; print('t' in sys.abiflags)"` should print `True` if current Python supports parallel threading without GIL
+      - In the instance of `False` (solution here)
+4. Run the application `python src/main.py`
 
 _macOS_
 1. within IDE's terminal create a virtual environment with `python3 -m venv venv`
@@ -40,8 +43,9 @@ _macOS_
    2.  `python3 src/main.py` to launch main application
 
 ## Configuration
-- config/default.yaml: Main application settings
-- config/performance.yaml: Performance and optimization settings
+
+- `config/default.yaml` – Main application settings.
+- `config/performance.yaml` – User overrides (optional).
 
 ## Project-Structure
 PewPy/
@@ -50,7 +54,10 @@ PewPy/
    - core/
       - `__init__.py`
       - `app_manager.py`
+      - `config.py.py`
+      - `executors.py.py`
       - `frame_pipeline.py`
+      - `resource_manager.py.py`
       - `thread_manager.py`
    - ui/
       - `__init__.py`

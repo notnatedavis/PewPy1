@@ -1,0 +1,4 @@
+#   config/performance.yaml
+#   Performance tuning overrides
+
+# (future : user can override/boost?)

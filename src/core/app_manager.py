@@ -1,48 +1,57 @@
 #   src/core/app_manager.py
-#   Main application coordination - Fixed circular imports
+#   Main application coordination - uses config and resource manager
 
 # ----- Imports ----- #
 import logging
 import threading
 from typing import Dict, Any, Optional
-from concurrent.futures import ThreadPoolExecutor
 from .thread_manager import ThreadManager
+from .config import Config
+from .resource_manager import ResourceManager
+from ..utils.system_utils import get_cpu_count
 
 # ----- Main Class ----- #
 class PewPyApplication :
-    # Main application class coordinating all components
-    
-    def __init__(self) -> None:
+    def __init__(self, config: Optional[Config] = None) -> None :
+        self.config = config or Config()
         self.running = False
         self.workers: Dict[str, Any] = {}
         self.worker_instances: Dict[str, Any] = {}
         self.thread_manager = ThreadManager()
+        self.resource_manager = ResourceManager(self.config.config)
         self._lock = threading.RLock()
-        self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="PewPyWorker")
         
-        # initialize workers lazily to avoid circular imports
         self._initialize_workers()
+        if self.config.get('resource_manager.enabled', True) :
+            self.resource_manager.start()
+            # Register callbacks for workers that can adapt
+            self._register_resource_callbacks()
         logging.info("PewPyApplication initialized")
-        
+    
     def _initialize_workers(self) -> None :
-        # initialize all toggleable function workers - lazy imports
         with self._lock :
             try :
-                # import workers only when needed
                 from src.workers.auto_clicker import AutoClicker
                 from src.workers.overlay import Overlay
+                # from src.workers.aimbot import AimbotWorker  # optional
                 
-                self.workers['auto_clicker'] = AutoClicker(click_interval=0.1)
-                logging.debug("AutoClicker worker initialized")
+                # AutoClicker with config
+                interval = self.config.get('workers.auto_clicker.default_interval', 0.1)
+                button = self.config.get('workers.auto_clicker.button', 'left')
+                self.workers['auto_clicker'] = AutoClicker(click_interval=interval, button=button)
                 
-                self.workers['overlay'] = Overlay(position=(0, 0), size=(300, 200))
-                logging.debug("Overlay worker initialized")
+                # Overlay with config
+                pos = self.config.get('workers.overlay.position', [0,0])
+                size = self.config.get('workers.overlay.size', [300,200])
+                opacity = self.config.get('workers.overlay.opacity', 180)
+                self.workers['overlay'] = Overlay(position=tuple(pos), size=tuple(size), opacity=opacity)
                 
-                # note: AimbotWorker requires additional configuration
-                # Uncomment and configure when needed
+                # Aimbot (commented out by default)
                 # from src.workers.aimbot import AimbotWorker
+                # aimbot_cfg = self.config.get('workers.aimbot', {})
                 # self.workers['aimbot'] = AimbotWorker(...)
                 
+                logging.debug("Workers initialized from config")
             except ImportError as e :
                 logging.error(f"Failed to import worker: {e}")
                 raise
@@ -50,54 +59,60 @@ class PewPyApplication :
                 logging.error(f"Worker initialization failed: {e}")
                 raise
     
+    def _register_resource_callbacks(self) -> None :
+        # Example: ScreenCapturer not directly a worker here, but inside AimbotWorker.
+        # For now, we can register a callback that updates screen_capturer if aimbot exists.
+        def on_resource_update(changes) :
+            if 'target_fps' in changes and 'aimbot' in self.worker_instances :
+                # Update screen capturer inside aimbot
+                aimbot = self.worker_instances['aimbot']
+                if hasattr(aimbot, 'capturer') and hasattr(aimbot.capturer, 'update_fps'):
+                    aimbot.capturer.update_fps(changes['target_fps'])
+        self.resource_manager.register_callback(on_resource_update)
+    
     def start_worker(self, worker_name: str) -> bool :
-        # start a specific worker
         with self._lock :
             if worker_name not in self.workers :
                 logging.error(f"Worker '{worker_name}' not found")
                 return False
-            
             if self.thread_manager.is_worker_running(worker_name) :
-                logging.warning(f"Worker '{worker_name}' is already running")
+                logging.warning(f"Worker '{worker_name}' already running")
                 return False
-            
             worker = self.workers[worker_name]
             success = self.thread_manager.start_worker(worker_name, worker)
-            
             if success :
                 self.worker_instances[worker_name] = worker
-                logging.info(f"Worker '{worker_name}' started successfully")
+                logging.info(f"Worker '{worker_name}' started")
             else :
                 logging.error(f"Failed to start worker '{worker_name}'")
-            
             return success
     
     def stop_worker(self, worker_name: str) -> bool :
-        # stop a specific worker
         with self._lock :
             if worker_name not in self.worker_instances :
-                logging.warning(f"Worker '{worker_name}' not found in active instances")
+                logging.warning(f"Worker '{worker_name}' not active")
                 return False
-            
             success = self.thread_manager.stop_worker(worker_name)
-            
             if success :
                 self.worker_instances.pop(worker_name, None)
-                logging.info(f"Worker '{worker_name}' stopped successfully")
+                logging.info(f"Worker '{worker_name}' stopped")
             else :
-                logging.warning(f"Worker '{worker_name}' failed to stop gracefully")
-            
+                logging.warning(f"Worker '{worker_name}' stop failed")
             return success
     
     def is_worker_running(self, worker_name: str) -> bool :
-        # check if worker is running
         return self.thread_manager.is_worker_running(worker_name)
     
+    def pause_worker(self, worker_name: str) -> bool :
+        return self.thread_manager.pause_worker(worker_name)
+    
+    def resume_worker(self, worker_name: str) -> bool :
+        return self.thread_manager.resume_worker(worker_name)
+    
     def stop_all(self) -> None :
-        # stop all workers and cleanup
         with self._lock :
-            logging.info("Initiating shutdown of all workers")
+            logging.info("Stopping all workers")
             self.thread_manager.stop_all()
             self.worker_instances.clear()
-            self._executor.shutdown(wait=True, cancel_futures=True)
+            self.resource_manager.stop()
             logging.info("All workers stopped")

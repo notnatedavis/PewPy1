@@ -1,0 +1,42 @@
+#   config/default.yaml
+#   PewPy Default Configuration
+
+# Main application settings
+app:
+  name: "PewPy"
+  version: "1.0.0"
+
+workers:
+  auto_clicker:
+    default_interval: 0.1
+    button: "left"
+  overlay:
+    position: [0, 0]
+    size: [300, 200]
+    opacity: 180
+  aimbot:
+    target_fps: 60
+    hsv_lower: [0, 120, 70]
+    hsv_upper: [10, 255, 255]
+    smooth_factor: 0.2
+    activation_key: "alt_l"
+    capture_region: null
+  screen_capturer:
+    target_fps: 60
+  target_detector:
+    min_area: 50
+    max_area: 50000
+    threads: 0  # 0 = auto (use all cores)
+
+pipeline:
+  max_queue_size: 10
+  use_executor: false  # enable parallel processing (experimental)
+  executor_type: "thread"  # "thread" or "process"
+  executor_workers: 4
+
+resource_manager:
+  enabled: true
+  check_interval: 5  # seconds
+  cpu_threshold: 80  # percent
+  fps_reduction_step: 10
+  min_fps: 30

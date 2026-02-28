@@ -9,6 +9,7 @@ import customtkinter as ctk
 import logging
 from typing import Optional, Dict, Any
 
+# ----- Main Class ----- #
 class ModernMainWindow :
     # Main application window
     

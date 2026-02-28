@@ -1,29 +1,25 @@
-#   src/setup.py
-#   Setup configuration for installation and distribution
+#   setup.py
 
 # ----- Imports ----- #
 from setuptools import setup, find_packages
-import os
 import sys
-# check Python version
-if sys.version_info < (3, 13) :
-    sys.exit("PewPy requires Python 3.13 or higher (due to multithreading)")
+if sys.version_info < (3, 13):
+    sys.exit("PewPy requires Python 3.13 or higher")
 
+# ----- Main Class ----- #
 def read_requirements() :
-    # Read requirements from requirements.txt
-    requirements = []
-    try : 
+    reqs = []
+    try :
         with open('requirements.txt', 'r') as f :
             for line in f :
                 line = line.strip()
                 if line and not line.startswith('#') :
-                    # handle platform-specific dependencies
                     if ';' in line :
                         line = line.split(';')[0].strip()
-                   requirements.append(line)
+                    reqs.append(line)
     except FileNotFoundError :
         print("[warning] requirements.txt not found")
-    return requirements
+    return reqs
 
 setup(
     name="PewPy",
@@ -33,4 +29,5 @@ setup(
     python_requires=">=3.13",
     install_requires=read_requirements(),
     include_package_data=True,
+    package_data={'': ['../config/*.yaml']},  # include config files
 )
