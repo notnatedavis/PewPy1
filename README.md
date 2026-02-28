@@ -31,8 +31,8 @@ _Windows_
 3. activate the virtual environment with `venv\Scripts\activate` , should show `(venv)` if not try killing the terminal and opening a new one
    - upgrade pip (good practice) `python -m pip install --upgrade pip`
    - install dependencies `pip install -r requirements.txt`
-   - verify python has `--disable-gil` (experimental free‑threaded mode) important for the project , check with `python -c "import sys; print('t' in sys.abiflags)"` should print `True` if current Python supports parallel threading without GIL
-      - In the instance of `False` (solution here)
+   - verify python has `--disable-gil` (experimental free‑threaded mode) important for the project , check with `python -c "import sys; print('Free-threaded' if hasattr(sys, '_is_gil_enabled') and not sys._is_gil_enabled() else 'Standard')"` should print `Standard` if current Python supports parallel threading without GIL
+      - In the instance of `False` download [WindowsInstaller64-bit 3.14.0](https://www.python.org/ftp/python/3.14.0/python-3.14.0-amd64.exe) , press Custom and install all boxes (or at least just free-threaded)
 4. Run the application `python src/main.py`
 
 _macOS_

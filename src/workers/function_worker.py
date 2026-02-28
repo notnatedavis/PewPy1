@@ -2,6 +2,7 @@
 #   Base class for all workers (passive, managed by ThreadManager)
 
 # ----- Imports ----- #
+import threading
 import time
 import logging
 from abc import ABC, abstractmethod
