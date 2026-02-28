@@ -10,7 +10,7 @@ from workers.function_worker import BaseWorker
 
 # ----- Main Class ----- #
 class TargetDetector(BaseWorker):
-    """Target detection using OpenCV with HSV color filtering"""
+    # Target detection using OpenCV with HSV color filtering
     
     def __init__(self, 
                  lower_hsv: Tuple[int, int, int] = (0, 120, 70),
@@ -33,52 +33,52 @@ class TargetDetector(BaseWorker):
         
         # GPU acceleration
         self.gpu_available = cv2.cuda.getCudaEnabledDeviceCount() > 0
-        if self.gpu_available:
+        if self.gpu_available :
             logging.info("GPU acceleration available for target detection")
-            try:
+            try :
                 self.gpu_stream = cv2.cuda_Stream()
-            except Exception as e:
+            except Exception as e :
                 logging.warning(f"GPU stream creation failed: {e}")
                 self.gpu_available = False
-        else:
+        else :
             logging.info("Using CPU for target detection")
     
-    def _work(self) -> None:
-        """Main detection loop - placeholder for continuous processing"""
+    def _work(self) -> None :
+        # Main detection loop - placeholder for continuous processing
         # This worker is designed to be called on-demand via detect_targets()
         # For continuous detection, override this method
-        while self.running:
+        while self.running :
             time.sleep(0.1)  # Minimal CPU usage
     
-    def detect_targets(self, frame: np.ndarray) -> Optional[Dict[str, Any]]:
-        """Detect targets in a frame and return detection results"""
+    def detect_targets(self, frame: np.ndarray) -> Optional[Dict[str, Any]] :
+        # Detect targets in a frame and return detection results
         if frame is None:
             return None
             
-        try:
-            if self.gpu_available:
+        try :
+            if self.gpu_available :
                 result = self._gpu_detection(frame)
-            else:
+            else :
                 result = self._cpu_detection(frame)
                 
-            with self.result_lock:
+            with self.result_lock :
                 self.detection_result = result
                 
             return result
             
-        except Exception as e:
+        except Exception as e :
             logging.error(f"Target detection error: {e}")
             return None
     
-    def _cpu_detection(self, frame: np.ndarray) -> Optional[Dict[str, Any]]:
-        """CPU-based target detection"""
+    def _cpu_detection(self, frame: np.ndarray) -> Optional[Dict[str, Any]] :
+        # CPU-based target detection
         # Convert to HSV
-        if self.hsv_buffer is None or self.hsv_buffer.shape != frame.shape:
+        if self.hsv_buffer is None or self.hsv_buffer.shape != frame.shape :
             self.hsv_buffer = np.empty_like(frame)
         hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV, dst=self.hsv_buffer)
         
         # Create mask
-        if self.mask_buffer is None or self.mask_buffer.shape != frame.shape[:2]:
+        if self.mask_buffer is None or self.mask_buffer.shape != frame.shape[:2] :
             self.mask_buffer = np.empty(frame.shape[:2], dtype=np.uint8)
         mask = cv2.inRange(hsv_frame, self.lower_hsv, self.upper_hsv, dst=self.mask_buffer)
         
@@ -87,9 +87,9 @@ class TargetDetector(BaseWorker):
         
         return self._process_contours(contours, frame.shape)
     
-    def _gpu_detection(self, frame: np.ndarray) -> Optional[Dict[str, Any]]:
-        """GPU-accelerated target detection"""
-        try:
+    def _gpu_detection(self, frame: np.ndarray) -> Optional[Dict[str, Any]] :
+        # GPU-accelerated target detection
+        try :
             # Upload to GPU
             gpu_frame = cv2.cuda_GpuMat()
             gpu_frame.upload(frame, stream=self.gpu_stream)
@@ -109,13 +109,13 @@ class TargetDetector(BaseWorker):
             
             return self._process_contours(contours, frame.shape)
             
-        except Exception as e:
+        except Exception as e :
             logging.warning(f"GPU detection failed, falling back to CPU: {e}")
             return self._cpu_detection(frame)
     
-    def _process_contours(self, contours: list, frame_shape: Tuple[int, int]) -> Optional[Dict[str, Any]]:
-        """Process contours and return target information"""
-        if not contours:
+    def _process_contours(self, contours: list, frame_shape: Tuple[int, int]) -> Optional[Dict[str, Any]] :
+        # Process contours and return target information
+        if not contours :
             return None
             
         # Find largest contour by area
@@ -123,7 +123,7 @@ class TargetDetector(BaseWorker):
         area = cv2.contourArea(largest_contour)
         
         # Filter by area
-        if area < self.min_area or area > self.max_area:
+        if area < self.min_area or area > self.max_area :
             return None
         
         # Get bounding rectangle and center
@@ -143,19 +143,19 @@ class TargetDetector(BaseWorker):
             'contour': largest_contour
         }
     
-    def get_latest_detection(self) -> Optional[Dict[str, Any]]:
-        """Get the latest detection result (thread-safe)"""
-        with self.result_lock:
+    def get_latest_detection(self) -> Optional[Dict[str, Any]] :
+        # Get the latest detection result (thread-safe)
+        with self.result_lock :
             return self.detection_result.copy() if self.detection_result is not None else None
     
-    def set_hsv_range(self, lower_hsv: Tuple[int, int, int], upper_hsv: Tuple[int, int, int]) -> None:
-        """Update HSV detection range"""
+    def set_hsv_range(self, lower_hsv: Tuple[int, int, int], upper_hsv: Tuple[int, int, int]) -> None :
+        # Update HSV detection range
         self.lower_hsv = np.array(lower_hsv, dtype=np.uint8)
         self.upper_hsv = np.array(upper_hsv, dtype=np.uint8)
         logging.info(f"HSV range updated: {lower_hsv} -> {upper_hsv}")
     
-    def set_area_limits(self, min_area: int, max_area: int) -> None:
-        """Update area filtering limits"""
+    def set_area_limits(self, min_area: int, max_area: int) -> None :
+        # Update area filtering limits
         self.min_area = min_area
         self.max_area = max_area
         logging.info(f"Area limits updated: {min_area} - {max_area}")

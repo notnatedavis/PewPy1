@@ -21,8 +21,8 @@ from workers.screen_capturer import ScreenCapturer
 from workers.target_detector import TargetDetector
 
 # ----- Main Class ----- #
-class AimbotWorker(BaseWorker):
-    """Main aimbot worker coordinating capture, detection, and mouse movement"""
+class AimbotWorker(BaseWorker) :
+    # Main aimbot worker coordinating capture, detection, and mouse movement
     
     def __init__(self, 
                  capture_region: Optional[Tuple[int, int, int, int]] = None,
@@ -55,9 +55,9 @@ class AimbotWorker(BaseWorker):
         
         logging.info(f"Aimbot worker initialized - Region: {capture_region}, FPS: {target_fps}")
     
-    def _work(self) -> None:
-        """Main aimbot processing loop"""
-        if not PYNPUT_AVAILABLE:
+    def _work(self) -> None :
+        # Main aimbot processing loop
+        if not PYNPUT_AVAILABLE :
             logging.error("Aimbot requires pynput for mouse control")
             return
             
@@ -66,8 +66,8 @@ class AimbotWorker(BaseWorker):
         
         logging.info("Aimbot worker started")
         
-        try:
-            while self.running:
+        try :
+            while self.running :
                 # Wait for new frame
                 if self.capturer.wait_for_frame(timeout=0.1):
                     self._process_frame()
@@ -75,48 +75,47 @@ class AimbotWorker(BaseWorker):
                 # Small sleep to prevent CPU spinning
                 time.sleep(0.001)
                 
-        except Exception as e:
+        except Exception as e :
             logging.error(f"Aimbot worker error: {e}")
-        finally:
+        finally :
             self._cleanup()
             logging.info("Aimbot worker stopped")
     
-    def _process_frame(self) -> None:
-        """Process a single frame for target detection and aiming"""
-        # Get latest frame
+    def _process_frame(self) -> None :
+        # Process a single frame for target detection and aiming
+        # get latest frame
         frame = self.capturer.get_latest_frame()
-        if frame is None:
+        if frame is None :
             return
             
         self.frame_count += 1
         
-        # Detect targets
+        # detect targets
         detection = self.detector.detect_targets(frame)
         
-        with self.state_lock:
+        with self.state_lock :
             # Update activation state based on key press
             self._update_activation_state()
             
-            if detection is not None and self.is_active:
+            if detection is not None and self.is_active :
                 self.detection_count += 1
                 self._aim_at_target(detection)
-            else:
+            else :
                 self.last_target_pos = None
     
-    def _update_activation_state(self) -> None:
-        """Update aimbot activation state based on key presses"""
-        # This is a simplified implementation
-        # In production, you'd use pynput's keyboard listener
-        # For now, we'll keep it always active when running
-        # You can extend this with proper key detection
+    def _update_activation_state(self) -> None :
+        # Update aimbot activation state based on key presses
+
+        # use pynput's keyboard listener
+        # can extend this with proper key detection
         self.is_active = self.running
     
-    def _aim_at_target(self, detection: Dict[str, Any]) -> None:
-        """Move mouse to aim at detected target"""
-        if self.mouse is None:
+    def _aim_at_target(self, detection: Dict[str, Any]) -> None :
+        # Move mouse to aim at detected target
+        if self.mouse is None :
             return
             
-        try:
+        try :
             screen_x, screen_y = detection['screen_position']
             
             # Convert normalized coordinates to screen coordinates
@@ -140,39 +139,39 @@ class AimbotWorker(BaseWorker):
             self.mouse.position = (int(smoothed_x), int(smoothed_y))
             self.last_target_pos = (smoothed_x, smoothed_y)
             
-        except Exception as e:
+        except Exception as e :
             logging.error(f"Mouse movement error: {e}")
     
-    def _get_screen_dimensions(self) -> Tuple[int, int]:
-        """Get screen dimensions - simplified implementation"""
+    def _get_screen_dimensions(self) -> Tuple[int, int] :
+        # Get screen dimensions - simplified implementation
         # In production, you'd use a proper screen info library
         # For now, return a default resolution
         return 1920, 1080
     
-    def set_activation_key(self, key: str) -> None:
-        """Update activation key"""
-        with self.state_lock:
+    def set_activation_key(self, key: str) -> None :
+        # Update activation key
+        with self.state_lock :
             self.activation_key = key
             logging.info(f"Activation key updated: {key}")
     
-    def set_smooth_factor(self, factor: float) -> None:
-        """Update mouse smoothing factor"""
-        with self.state_lock:
+    def set_smooth_factor(self, factor: float) -> None :
+        # Update mouse smoothing factor
+        with self.state_lock :
             self.smooth_factor = max(0.01, min(1.0, factor))
             logging.info(f"Smooth factor updated: {self.smooth_factor}")
     
-    def set_hsv_range(self, lower_hsv: Tuple[int, int, int], upper_hsv: Tuple[int, int, int]) -> None:
-        """Update target detection HSV range"""
+    def set_hsv_range(self, lower_hsv: Tuple[int, int, int], upper_hsv: Tuple[int, int, int]) -> None :
+        # Update target detection HSV range
         self.detector.set_hsv_range(lower_hsv, upper_hsv)
     
-    def set_capture_region(self, region: Optional[Tuple[int, int, int, int]]) -> None:
-        """Update screen capture region"""
+    def set_capture_region(self, region: Optional[Tuple[int, int, int, int]]) -> None :
+        # Update screen capture region
         # Note: This requires restarting the capturer
         self.capture_region = region
         logging.info(f"Capture region updated: {region}")
     
-    def get_performance_stats(self) -> Dict[str, Any]:
-        """Get performance statistics"""
+    def get_performance_stats(self) -> Dict[str, Any] :
+        # Get performance statistics
         current_time = time.time()
         runtime = current_time - self.start_time
         
@@ -185,7 +184,7 @@ class AimbotWorker(BaseWorker):
             'is_active': self.is_active
         }
     
-    def _cleanup(self) -> None:
-        """Cleanup resources"""
+    def _cleanup(self) -> None :
+        # Cleanup resources
         self.capturer.stop()
         logging.debug("Aimbot resources cleaned up")

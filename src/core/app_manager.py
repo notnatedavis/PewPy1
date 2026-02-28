@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional
 from concurrent.futures import ThreadPoolExecutor
 from .thread_manager import ThreadManager
 
+# ----- Main Class ----- #
 class PewPyApplication :
     # Main application class coordinating all components
     
