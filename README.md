@@ -1,84 +1,119 @@
-# PewPy
+# PewPy (v1.0.0)
 
-A high-performance, low-latency aimbot application written in Python 3.13, leveraging modern multiprocessing and multithreading for optimal performance. Features real-time screen capture, GPU-accelerated target detection, and adaptive resource management.
+A high‑performance, low‑latency aimbot application written in Python 3.13, leveraging modern multiprocessing and multithreading for optimal performance. Features real‑time screen capture, GPU‑accelerated target detection, and adaptive resource management.
+
+---
 
 ## Table of Contents
+
 - [Introduction](#introduction)
 - [Features](#features)
+- [Project Structure](#project-structure)
 - [Usage](#usage)
-- [Configuration](#Configuration)
-- [Project-Structure](#Project-Structure)
-- [Additional-Information](#Additional-Info)
+- [Configuration](#configuration)
+- [Additional Information](#additional-information)
+
+---
 
 ## Introduction
 
-PewPy is a sophisticated aimbot application built with Python 3.13, designed for maximum performance through advanced concurrency patterns and GPU acceleration. The application uses DirectX screen capture, OpenCV-based target detection, and low-latency input control to provide precise aiming assistance.
+PewPy is a modular desktop utility built around three core workers:
+
+- **Overlay** – A transparent, click‑through info panel (tkinter).
+- **Auto‑Clicker** – Configurable mouse automation.
+- **Aimbot** – Real‑time screen capture + GPU‑accelerated target detection + smooth mouse control.
+
+All workers can be toggled on/off independently through a modern `customtkinter` UI. The application dynamically adapts resource usage (FPS, thread pools) based on system load, making it suitable for low‑end hardware as well as high‑end rigs.
+
+---
 
 ## Features
 
-- **High-Performance Screen Capture**: DirectX desktop duplication (dxcam) for minimal latency.
-- **GPU-Accelerated Detection**: OpenCV with CUDA support.
-- **Adaptive Resource Management**: Dynamically adjusts capture FPS based on CPU load.
-- **Python 3.13 No‑GIL Support**: Automatically detects free-threaded builds and optimizes execution.
-- **Modular Concurrency**: Pluggable executors (thread/process) for CPU‑bound stages.
-- **Configuration Hot-Reload**: YAML-based settings with live updates.
+- **High‑Performance Screen Capture** – DirectX desktop duplication via `dxcam` for minimal latency.
+- **GPU‑Accelerated Detection** – OpenCV with CUDA fallback to CPU when no GPU is available.
+- **Adaptive Resource Manager** – Monitors CPU usage and automatically lowers capture FPS to maintain system responsiveness.
+- **Python 3.13 No‑GIL Compatible** – Detects free‑threaded builds and optimises execution.
+- **Modular Concurrency** – Pluggable executors (thread/process) for CPU‑bound pipeline stages.
+- **Configuration Hot‑Reload** – YAML‑based settings with live updates.
+- **Clean CustomTkinter UI** – Three‑tab interface with status updates and real‑time control.
 
-## Usage 
+---
 
-_Windows_
-1. git clone repo & cd in
-2. create virtual environment `python -m venv venv`
-3. activate the virtual environment with `venv\Scripts\activate` , should show `(venv)` if not try killing the terminal and opening a new one
-   - upgrade pip (good practice) `python -m pip install --upgrade pip`
-   - install dependencies `pip install -r requirements.txt`
-   - verify python has `--disable-gil` (experimental free‑threaded mode) important for the project , check with `python -c "import sys; print('Free-threaded' if hasattr(sys, '_is_gil_enabled') and not sys._is_gil_enabled() else 'Standard')"` should print `Standard` if current Python supports parallel threading without GIL
-      - In the instance of `False` download [WindowsInstaller64-bit 3.14.0](https://www.python.org/ftp/python/3.14.0/python-3.14.0-amd64.exe) , press Custom and install all boxes (or at least just free-threaded)
-4. Run the application `python src/main.py`
+## Project Structure
 
-_macOS_
-1. within IDE's terminal create a virtual environment with `python3 -m venv venv`
-2. activate the virtual environment with `source venv/bin/activate` , should show `(venv)` if not try killing the terminal and opening a new one
-3. launch main locally
-   1. install dependencies , `python3 -m pip install -r requirements.txt`
-   2.  `python3 src/main.py` to launch main application
+```bash
+PewPy/
+├── config/
+│   ├── default.yaml            # core application settings
+│   └── performance.yaml        # user‑override / performance tuning
+├── logs/                       # runtime logs (not tracked)
+├── pewpy/
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── app_manager.py      # worker coordination + lifecycle
+│   │   ├── config.py           # YAML loader with dot‑notation access
+│   │   ├── executors.py        # abstract thread/process executor backends
+│   │   ├── frame_pipeline.py   # frame processing chain (optional parallelism)
+│   │   ├── resource_manager.py # adaptive CPU/FPS controller
+│   │   └── thread_manager.py   # thread lifecycle with stop/pause events
+│   ├── ui/
+│   │   ├── __init__.py
+│   │   └── main_window.py      # customtkinter 3‑tab control panel
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   └── system_utils.py     # platform checks, priority optimisation
+│   ├── workers/
+│   │   ├── __init__.py
+│   │   ├── aimbot.py           # capture + detect + mouse movement
+│   │   ├── auto_clicker.py     # pynput‑based auto‑clicker
+│   │   ├── function_worker.py  # abstract worker base class
+│   │   ├── overlay.py          # tkinter overlay window
+│   │   ├── screen_capturer.py  # dxcam screen capture wrapper
+│   │   └── target_detector.py  # OpenCV HSV detection (GPU/CPU)
+│   ├── __init__.py
+│   └── main.py                # entry point (run with -m pewpy.main)
+├── .gitignore
+├── README.md                  # (you are here, hi!)
+├── requirements.txt
+└── setup.py
+```
+
+--- 
+
+## Usage
+
+1. **Clone & enter**
+   ```bash
+   git clone <your-repo-url> && cd PewPy1
+   ```
+
+2. **Create virtual environment & activate**
+    ```bash
+    python -m venv venv
+    source venv/bin/activate        # Linux / macOS
+        # or
+    venv\Scripts\activate           # Windows
+    ```
+
+3. **Install dependencies**
+    ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Run the application**
+    ```bash
+    python -m pewpy.main
+    ```
+
+--- 
 
 ## Configuration
 
-- `config/default.yaml` – Main application settings.
-- `config/performance.yaml` – User overrides (optional).
+- `config/default.yaml` – Main settings: worker defaults, pipeline parameters, resource manager thresholds
+- `config/performance.yaml` – (optional) User overrides. Merged on top of default.yaml at startup
+- The `Config` class supports dot‑notation (`config.get("aimbot.target_fps")`) and a `reload()` method for hot‑reloading during runtime (currently requires manual call, update future)
 
-## Project-Structure
-PewPy/
-- logs/
-- src/
-   - core/
-      - `__init__.py`
-      - `app_manager.py`
-      - `config.py.py`
-      - `executors.py.py`
-      - `frame_pipeline.py`
-      - `resource_manager.py.py`
-      - `thread_manager.py`
-   - ui/
-      - `__init__.py`
-      - `main_window.py`
-   - utils/
-      - `__init__.py`
-      - `system_utils.py`
-   - workers/
-      - `__init__.py`
-      - `aimbot.py`
-      - `auto_clicker.py`
-      - `function_worker.py`
-      - `overlay.py`
-      - `screen_capturer.py`
-      - `target_detector.py`
-   - `main.py`
-- `.gitignore`
-- `ReadMe.md`
-- `requirements.txt`
-- `setup.py`
+--- 
 
-## Additional-Info
-
-This portion is for logging or storing notes relevent to the project and its scope.
+## Additional-Information
+This portion is for logging or storing notes relevent to the project and its scope. 

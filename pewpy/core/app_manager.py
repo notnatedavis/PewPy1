@@ -1,4 +1,4 @@
-#   src/core/app_manager.py
+#   pewpy/core/app_manager.py
 #   Main application coordination - uses config and resource manager
 
 # ----- Imports ----- #
@@ -31,9 +31,8 @@ class PewPyApplication :
     def _initialize_workers(self) -> None :
         with self._lock :
             try :
-                from src.workers.auto_clicker import AutoClicker
-                from src.workers.overlay import Overlay
-                # from src.workers.aimbot import AimbotWorker  # optional
+                from pewpy.workers.auto_clicker import AutoClicker
+                from pewpy.workers.overlay import Overlay
                 
                 # AutoClicker with config
                 interval = self.config.get('workers.auto_clicker.default_interval', 0.1)
@@ -43,13 +42,28 @@ class PewPyApplication :
                 # Overlay with config
                 pos = self.config.get('workers.overlay.position', [0,0])
                 size = self.config.get('workers.overlay.size', [300,200])
-                opacity = self.config.get('workers.overlay.opacity', 180)
+                opacity = self.config.get('workers.overlay.opacity', 0.7)
                 self.workers['overlay'] = Overlay(position=tuple(pos), size=tuple(size), opacity=opacity)
                 
-                # Aimbot (commented out by default)
-                # from src.workers.aimbot import AimbotWorker
-                # aimbot_cfg = self.config.get('workers.aimbot', {})
-                # self.workers['aimbot'] = AimbotWorker(...)
+                # Aimbot - try to load, but make optional
+                try:
+                    from pewpy.workers.aimbot import AimbotWorker
+                    aimbot_cfg = self.config.get('workers.aimbot', {})
+                    self.workers['aimbot'] = AimbotWorker(
+                        capture_region=aimbot_cfg.get('capture_region'),
+                        target_fps=aimbot_cfg.get('target_fps', 60),
+                        hsv_range=(
+                            tuple(aimbot_cfg.get('hsv_lower', [0,120,70])),
+                            tuple(aimbot_cfg.get('hsv_upper', [10,255,255]))
+                        ),
+                        smooth_factor=aimbot_cfg.get('smooth_factor', 0.2),
+                        activation_key=aimbot_cfg.get('activation_key', 'alt_l')
+                    )
+                    logging.info("Aimbot worker loaded")
+                except ImportError:
+                    logging.info("Aimbot worker not available (import failed)")
+                except Exception as e:
+                    logging.warning(f"Aimbot worker init failed: {e}")
                 
                 logging.debug("Workers initialized from config")
             except ImportError as e :
@@ -58,7 +72,7 @@ class PewPyApplication :
             except Exception as e :
                 logging.error(f"Worker initialization failed: {e}")
                 raise
-    
+
     def _register_resource_callbacks(self) -> None :
         # Example: ScreenCapturer not directly a worker here, but inside AimbotWorker.
         # For now, we can register a callback that updates screen_capturer if aimbot exists.

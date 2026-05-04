@@ -1,15 +1,15 @@
-#   src/workers/target_detector.py
+#   pewpy/workers/target_detector.py
 #   OpenCV target detection with GPU acceleration
 
 # ----- Imports ----- #
 import cv2
 import numpy as np
 import logging
+import threading
 from typing import Optional, Tuple, Dict, Any
-from workers.function_worker import BaseWorker
 
 # ----- Main Class ----- #
-class TargetDetector(BaseWorker):
+class TargetDetector:
     # Target detection using OpenCV with HSV color filtering
     
     def __init__(self, 
@@ -17,7 +17,6 @@ class TargetDetector(BaseWorker):
                  upper_hsv: Tuple[int, int, int] = (10, 255, 255),
                  min_area: int = 50,
                  max_area: int = 50000):
-        super().__init__()
         self.lower_hsv = np.array(lower_hsv, dtype=np.uint8)
         self.upper_hsv = np.array(upper_hsv, dtype=np.uint8)
         self.min_area = min_area
@@ -42,13 +41,6 @@ class TargetDetector(BaseWorker):
                 self.gpu_available = False
         else :
             logging.info("Using CPU for target detection")
-    
-    def _work(self) -> None :
-        # Main detection loop - placeholder for continuous processing
-        # This worker is designed to be called on-demand via detect_targets()
-        # For continuous detection, override this method
-        while self.running :
-            time.sleep(0.1)  # Minimal CPU usage
     
     def detect_targets(self, frame: np.ndarray) -> Optional[Dict[str, Any]] :
         # Detect targets in a frame and return detection results

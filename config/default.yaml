@@ -13,7 +13,7 @@ workers:
   overlay:
     position: [0, 0]
     size: [300, 200]
-    opacity: 180
+    opacity: 0.7 # tkinter (0 - 1)
   aimbot:
     target_fps: 60
     hsv_lower: [0, 120, 70]

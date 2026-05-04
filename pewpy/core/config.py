@@ -1,4 +1,4 @@
-#   src/core/config.py
+#   pewpy/core/config.py
 #   Configuration loader and manager
 
 # ----- Imports ----- #

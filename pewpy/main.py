@@ -1,4 +1,4 @@
-#   src/main.py
+#   pewpy/main.py
 #   PewPy Main Entry Point
 
 # ----- Imports ----- #
@@ -7,8 +7,6 @@ import signal
 import logging
 import traceback
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # ----- Main Classes ----- #
 def setup_logging() -> None :
@@ -26,7 +24,7 @@ def signal_handler(signum, frame) :
     sys.exit(0)
 
 def check_dependencies() -> bool :
-    required = ['customtkinter', 'pynput', 'pygame', 'numpy', 'yaml']
+    required = ['customtkinter', 'pynput', 'numpy', 'yaml']
     missing = []
     for dep in required :
         try :
@@ -51,10 +49,10 @@ def main() -> int :
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
         
-        # Import after path setup
-        from src.core.app_manager import PewPyApplication
-        from src.core.config import Config
-        from src.ui.main_window import MainWindow
+        # Import after path setup (package installed or run from root)
+        from pewpy.core.app_manager import PewPyApplication
+        from pewpy.core.config import Config
+        from pewpy.ui.main_window import MainWindow
         
         # Load configuration
         config = Config()

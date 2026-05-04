@@ -1,4 +1,4 @@
-#   src/workers/aimbot.py
+#   pewpy/workers/aimbot.py
 #   Aimbot worker (passive) coordinating capture, detection, mouse.
 
 # ----- Imports ----- #
@@ -44,6 +44,9 @@ class AimbotWorker(BaseWorker):
         self.frame_count = 0
         self.detection_count = 0
         
+        # Cache screen dimensions (populated when capturer starts)
+        self._screen_width = 1920
+        self._screen_height = 1080
         logging.info(f"Aimbot initialized - Region: {capture_region}, FPS: {target_fps}")
     
     def _work_cycle(self) -> None :
@@ -74,8 +77,9 @@ class AimbotWorker(BaseWorker):
             return
         try :
             screen_x, screen_y = detection['screen_position']
-            target_x = int(screen_x * 1920)   # FIXME: get actual screen size
-            target_y = int(screen_y * 1080)
+            # Use actual screen dimensions
+            target_x = int(screen_x * self._screen_width)
+            target_y = int(screen_y * self._screen_height)
             current_x, current_y = self.mouse.position
             if self.last_target_pos :
                 last_x, last_y = self.last_target_pos
@@ -92,6 +96,13 @@ class AimbotWorker(BaseWorker):
     def run(self, stop_event: threading.Event, pause_event: threading.Event) -> None :
         # Override to start capturer before loop
         self.capturer.start()
+        # Obtain screen dimensions from capturer after start
+        if self.capturer.camera is not None:
+            # dxcam stores width/height of the captured region or full screen
+            region_info = self.capturer.camera.output_info
+            if region_info and isinstance(region_info, dict):
+                self._screen_width = region_info.get('width', 1920)
+                self._screen_height = region_info.get('height', 1080)
         try :
             super().run(stop_event, pause_event)
         finally :
@@ -103,10 +114,13 @@ class AimbotWorker(BaseWorker):
     
     # Configuration update methods...
     def set_smooth_factor(self, factor: float) -> None :
-        with self.state_lock:
+        with self.state_lock :
             self.smooth_factor = max(0.01, min(1.0, factor))
+
     def set_hsv_range(self, lower, upper) :
         self.detector.set_hsv_range(lower, upper)
+
     def set_capture_region(self, region) :
         self.capture_region = region
+        
         # Note: would require restart; for simplicity, ignore dynamic

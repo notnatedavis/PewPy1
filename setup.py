@@ -24,10 +24,9 @@ def read_requirements() :
 setup(
     name="PewPy",
     author="@notnatedavis",
-    package_dir={'': 'src'},
-    packages=find_packages(where='src'),
+    packages=find_packages(),
     python_requires=">=3.13",
     install_requires=read_requirements(),
     include_package_data=True,
-    package_data={'': ['../config/*.yaml']},  # include config files
+    # config files are not part of the package; kept as external resources
 )

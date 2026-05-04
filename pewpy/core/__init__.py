@@ -1,4 +1,4 @@
-#   src/core/__init__.py
+#   pewpy/core/__init__.py
 #   Core application management and threading components
 
 __version__ = "1.0.0"
