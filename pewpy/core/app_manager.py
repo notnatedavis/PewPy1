@@ -45,6 +45,19 @@ class PewPyApplication :
                 opacity = self.config.get('workers.overlay.opacity', 0.7)
                 self.workers['overlay'] = Overlay(position=tuple(pos), size=tuple(size), opacity=opacity)
                 
+                # Screen Overlay
+                try :
+                    from pewpy.workers.screen_overlay import ScreenOverlay
+                    self.workers['screen_overlay'] = ScreenOverlay(
+                        color="red",
+                        opacity=0.5
+                    )
+                    logging.info("ScreenOverlay worker loaded")
+                except ImportError :
+                    logging.info("ScreenOverlay worker not available (import failed)")
+                except Exception as e :
+                    logging.warning(f"ScreenOverlay worker init failed: {e}")
+                
                 # Aimbot - try to load, but make optional
                 try:
                     from pewpy.workers.aimbot import AimbotWorker
@@ -74,14 +87,13 @@ class PewPyApplication :
                 raise
 
     def _register_resource_callbacks(self) -> None :
-        # Example: ScreenCapturer not directly a worker here, but inside AimbotWorker.
-        # For now, we can register a callback that updates screen_capturer if aimbot exists.
         def on_resource_update(changes) :
-            if 'target_fps' in changes and 'aimbot' in self.worker_instances :
-                # Update screen capturer inside aimbot
+            # Only update if the aimbot worker is actually running and has the capturer
+            if 'aimbot' in self.worker_instances:
                 aimbot = self.worker_instances['aimbot']
                 if hasattr(aimbot, 'capturer') and hasattr(aimbot.capturer, 'update_fps'):
-                    aimbot.capturer.update_fps(changes['target_fps'])
+                    if 'target_fps' in changes:
+                        aimbot.capturer.update_fps(changes['target_fps'])
         self.resource_manager.register_callback(on_resource_update)
     
     def start_worker(self, worker_name: str) -> bool :

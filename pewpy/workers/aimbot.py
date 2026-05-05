@@ -92,7 +92,30 @@ class AimbotWorker(BaseWorker):
             self.last_target_pos = (smoothed_x, smoothed_y)
         except Exception as e :
             logging.error(f"Mouse movement error: {e}")
-    
+
+    # Configuration update methods...
+    def set_smooth_factor(self, factor: float) -> None :
+        with self.state_lock :
+            self.smooth_factor = max(0.01, min(1.0, factor))
+
+    def set_hsv_range(self, lower, upper) :
+        self.detector.set_hsv_range(lower, upper)
+
+    def set_capture_region(self, region) :
+        self.capture_region = region
+        
+        # Note: would require restart; for simplicity, ignore dynamic
+
+    # --- Aimbot (tab) activation key ---
+    def set_activation_key(self, key: str) -> None :
+        # Update the activation key string
+        # (Future: integrate with pynput listener to dynamically change the key)
+        with self.state_lock :
+            self.activation_key = key
+        logging.info(f"Aimbot activation key set to: {key}")
+
+    # ----- Core Functions ----- 
+
     def run(self, stop_event: threading.Event, pause_event: threading.Event) -> None :
         # Override to start capturer before loop
         self.capturer.start()
@@ -111,16 +134,3 @@ class AimbotWorker(BaseWorker):
     def _cleanup(self) -> None :
         self.capturer.stop()
         logging.debug("Aimbot cleaned up")
-    
-    # Configuration update methods...
-    def set_smooth_factor(self, factor: float) -> None :
-        with self.state_lock :
-            self.smooth_factor = max(0.01, min(1.0, factor))
-
-    def set_hsv_range(self, lower, upper) :
-        self.detector.set_hsv_range(lower, upper)
-
-    def set_capture_region(self, region) :
-        self.capture_region = region
-        
-        # Note: would require restart; for simplicity, ignore dynamic

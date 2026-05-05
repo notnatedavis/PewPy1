@@ -42,38 +42,45 @@ All workers can be toggled on/off independently through a modern `customtkinter`
 ## Project Structure
 
 ```bash
-PewPy/
 ├── config/
-│   ├── default.yaml            # core application settings
-│   └── performance.yaml        # user‑override / performance tuning
-├── logs/                       # runtime logs (not tracked)
+│   ├── default.yaml               # core application settings
+│   └── performance.yaml           # user‑override / performance tuning
+├── logs/                          # runtime logs (not tracked)
 ├── pewpy/
 │   ├── core/
 │   │   ├── __init__.py
-│   │   ├── app_manager.py      # worker coordination + lifecycle
-│   │   ├── config.py           # YAML loader with dot‑notation access
-│   │   ├── executors.py        # abstract thread/process executor backends
-│   │   ├── frame_pipeline.py   # frame processing chain (optional parallelism)
-│   │   ├── resource_manager.py # adaptive CPU/FPS controller
-│   │   └── thread_manager.py   # thread lifecycle with stop/pause events
+│   │   ├── app_manager.py         # worker coordination + lifecycle
+│   │   ├── config.py              # YAML loader with dot‑notation access
+│   │   ├── executors.py           # abstract thread/process executor backends
+│   │   ├── frame_pipeline.py      # frame processing chain (optional parallelism)
+│   │   ├── resource_manager.py    # adaptive CPU/FPS controller
+│   │   └── thread_manager.py      # thread lifecycle with stop/pause events
 │   ├── ui/
+│   │   ├── tabs/
+│   │   │   ├── __init__.py
+│   │   │   ├── aimbot_tab.py       # Aimbot controls (toggle, HSV, smooth, activation key)
+│   │   │   ├── general_tab.py      # Title, placeholders, global status bar
+│   │   │   ├── mouse_tab.py        # Auto‑clicker toggle, interval, placeholders
+│   │   │   └── overlays_tab.py     # Stats & screen overlay toggles
+│   │   ├── utils.py                # shared UI helpers (centered frame)
 │   │   ├── __init__.py
-│   │   └── main_window.py      # customtkinter 3‑tab control panel
+│   │   └── main_window.py          # tab container, UI update loop, shutdown
 │   ├── utils/
 │   │   ├── __init__.py
-│   │   └── system_utils.py     # platform checks, priority optimisation
+│   │   └── system_utils.py         # platform checks, priority optimisation
 │   ├── workers/
 │   │   ├── __init__.py
-│   │   ├── aimbot.py           # capture + detect + mouse movement
-│   │   ├── auto_clicker.py     # pynput‑based auto‑clicker
-│   │   ├── function_worker.py  # abstract worker base class
-│   │   ├── overlay.py          # tkinter overlay window
-│   │   ├── screen_capturer.py  # dxcam screen capture wrapper
-│   │   └── target_detector.py  # OpenCV HSV detection (GPU/CPU)
+│   │   ├── aimbot.py               # capture + detect + mouse movement
+│   │   ├── auto_clicker.py         # pynput‑based auto‑clicker
+│   │   ├── function_worker.py      # abstract worker base class
+│   │   ├── overlay.py              # tkinter overlay window
+│   │   ├── screen_capturer.py      # dxcam screen capture wrapper
+│   │   ├── screen_overlay.py       # full‑screen coloured overlay
+│   │   └── target_detector.py      # OpenCV HSV detection (GPU/CPU)
 │   ├── __init__.py
-│   └── main.py                # entry point (run with -m pewpy.main)
+│   └── main.py                     # entry point (run with -m pewpy.main)
 ├── .gitignore
-├── README.md                  # (you are here, hi!)
+├── README.md                       # (you are here, hi!)
 ├── requirements.txt
 └── setup.py
 ```
@@ -84,7 +91,7 @@ PewPy/
 
 1. **Clone & enter**
    ```bash
-   git clone <your-repo-url> && cd PewPy1
+   git clone https://github.com/notnatedavis/PewPy1.git && cd PewPy1
    ```
 
 2. **Create virtual environment & activate**
@@ -116,4 +123,5 @@ PewPy/
 --- 
 
 ## Additional-Information
+
 This portion is for logging or storing notes relevent to the project and its scope. 

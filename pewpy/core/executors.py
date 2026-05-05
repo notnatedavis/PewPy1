@@ -1,13 +1,13 @@
 #   src/core/executors.py
 #   Abstract executor backends for parallel processing
 
-# ----- Imports ----- #
+# ----- Imports ----- 
 import logging
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from typing import Callable, Any, Optional
 
-# ----- Main Class ----- #
+# ----- Main Class ----- 
 class ExecutorBackend(ABC) :
     # Abstract base for execution backends
     

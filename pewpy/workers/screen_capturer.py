@@ -42,20 +42,18 @@ class ScreenCapturer(BaseWorker) :
             self.camera = None
     
     def _work_cycle(self) -> None :
-        # Called repeatedly. Get latest frame and store
+        # Called repeatedly. Fetch latest frame from camera and signal ready.
         if self.camera is None :
             time.sleep(0.1)
             return
-        # In passive mode, we rely on camera's internal thread; we just fetch.
         frame = self.camera.get_latest_frame()
         if frame is not None :
             with self.frame_lock :
                 self.frame_buffer = frame.copy()
             self.frame_ready.set()
-        # No sleep needed; BaseWorker will sleep if cycle too fast.
+        # BaseWorker will sleep if cycle is too fast.
     
     def run(self, stop_event: threading.Event, pause_event: threading.Event) -> None :
-        # Start the camera and then run the base loop
         if self.camera is not None :
             self.camera.start(target_fps=self.target_fps, video_mode=False)
             logging.info("Screen capture started")
@@ -65,10 +63,17 @@ class ScreenCapturer(BaseWorker) :
             self._cleanup_camera()
     
     def get_latest_frame(self) -> Optional[np.ndarray] :
+        """Return the most recent frame and clear the ready signal."""
         with self.frame_lock :
-            return self.frame_buffer.copy() if self.frame_buffer is not None else None
+            if self.frame_buffer is not None :
+                frame = self.frame_buffer.copy()
+                # Clear the event so wait_for_frame will block until next frame
+                self.frame_ready.clear()
+                return frame
+        return None
     
     def wait_for_frame(self, timeout: float = 1.0) -> bool :
+        """Block until a new frame has been captured."""
         return self.frame_ready.wait(timeout=timeout)
     
     def _cleanup_camera(self) -> None :
@@ -82,9 +87,8 @@ class ScreenCapturer(BaseWorker) :
         self._cleanup_camera()
     
     def update_fps(self, new_fps: int) -> None :
-        # Called by resource manager to adjust capture rate
         if new_fps != self.target_fps :
             self.target_fps = new_fps
             logging.info(f"Screen capturer FPS updated to {new_fps}")
-            # In practice, dxcam doesn't support dynamic FPS change without restart.
-            # We could restart the camera, but that's heavy. For placeholder, just log.
+            # dxcam does not support dynamic FPS change without restart.
+            # In a real implementation you would restart the camera.
