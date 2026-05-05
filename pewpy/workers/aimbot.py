@@ -17,6 +17,7 @@ except ImportError :
 from .function_worker import BaseWorker
 from .screen_capturer import ScreenCapturer
 from .target_detector import TargetDetector
+from .overlay_communication import OverlayData
 
 # ----- Main Class ----- #
 class AimbotWorker(BaseWorker):
@@ -27,12 +28,14 @@ class AimbotWorker(BaseWorker):
                  target_fps: int = 60,
                  hsv_range: Tuple[Tuple[int, int, int], Tuple[int, int, int]] = ((0, 120, 70), (10, 255, 255)),
                  smooth_factor: float = 0.2,
-                 activation_key: str = 'alt_l') :
+                 activation_key: str = 'alt_l',
+                 overlay_data: Optional[OverlayData] = None) -> None :
         super().__init__()
         self.capture_region = capture_region
         self.target_fps = target_fps
         self.smooth_factor = max(0.01, min(1.0, smooth_factor))
         self.activation_key = activation_key
+        self.overlay_data = overlay_data
         
         self.capturer = ScreenCapturer(region=capture_region, target_fps=target_fps)
         self.detector = TargetDetector(lower_hsv=hsv_range[0], upper_hsv=hsv_range[1])
@@ -68,9 +71,19 @@ class AimbotWorker(BaseWorker):
             self.is_active = True  # For demo
             if detection is not None and self.is_active :
                 self.detection_count += 1
+                # Publish detection to overlay data bridge
+                if self.overlay_data is not None:
+                    self.overlay_data.update({
+                        'target': detection['screen_position'],  # (x,y) normalised
+                        'bbox': detection['bounding_box'],        # (x,y,w,h) in pixels
+                        'frame_dims': (self._screen_width, self._screen_height)
+                    })
                 self._aim_at_target(detection)
             else :
                 self.last_target_pos = None
+                # Clear overlay target if no detection
+                if self.overlay_data is not None:
+                    self.overlay_data.update({'target': None, 'bbox': None})
     
     def _aim_at_target(self, detection: Dict[str, Any]) -> None :
         if self.mouse is None :

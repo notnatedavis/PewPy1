@@ -33,13 +33,17 @@ class PewPyApplication :
             try :
                 from pewpy.workers.auto_clicker import AutoClicker
                 from pewpy.workers.overlay import Overlay
+                from pewpy.workers.overlay_communication import OverlayData
                 
-                # AutoClicker with config
+                # Create a shared data bridge for inter-worker communication
+                overlay_data = OverlayData()
+                
+                # AutoClicker with config (unchanged)
                 interval = self.config.get('workers.auto_clicker.default_interval', 0.1)
                 button = self.config.get('workers.auto_clicker.button', 'left')
                 self.workers['auto_clicker'] = AutoClicker(click_interval=interval, button=button)
                 
-                # Overlay with config
+                # Overlay with config (unchanged)
                 pos = self.config.get('workers.overlay.position', [0,0])
                 size = self.config.get('workers.overlay.size', [300,200])
                 opacity = self.config.get('workers.overlay.opacity', 0.7)
@@ -50,7 +54,8 @@ class PewPyApplication :
                     from pewpy.workers.screen_overlay import ScreenOverlay
                     self.workers['screen_overlay'] = ScreenOverlay(
                         color="red",
-                        opacity=0.5
+                        opacity=0.5,
+                        overlay_data=overlay_data # new
                     )
                     logging.info("ScreenOverlay worker loaded")
                 except ImportError :
@@ -70,7 +75,8 @@ class PewPyApplication :
                             tuple(aimbot_cfg.get('hsv_upper', [10,255,255]))
                         ),
                         smooth_factor=aimbot_cfg.get('smooth_factor', 0.2),
-                        activation_key=aimbot_cfg.get('activation_key', 'alt_l')
+                        activation_key=aimbot_cfg.get('activation_key', 'alt_l'),
+                        overlay_data=overlay_data                # new
                     )
                     logging.info("Aimbot worker loaded")
                 except ImportError:
