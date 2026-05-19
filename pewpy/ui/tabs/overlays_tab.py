@@ -9,7 +9,8 @@ from .base_tab import BaseTab
 
 # ----- Main Class ----- 
 class OverlaysTab(BaseTab):
-    def __init__(self, parent_tab, app, ui_queue: queue.Queue):
+    def __init__(self, parent_tab, app, ui_queue: queue.Queue, main_window=None):
+        self.main_window = main_window  # reference to ModernMainWindow
         super().__init__(parent_tab, app, ui_queue)
 
     def _create_widgets(self) -> None:
@@ -17,7 +18,7 @@ class OverlaysTab(BaseTab):
         self.overlay_btn = ctk.CTkButton(
             self.frame,
             text="Stats Overlay: (off)",
-            command=self.toggle_overlay,
+            command=self.toggle_stats_overlay,
             width=180,
             height=40,
             font=ctk.CTkFont(size=12, weight="bold"),
@@ -53,58 +54,34 @@ class OverlaysTab(BaseTab):
         self.overlay_placeholder2.pack(pady=6, anchor="center")
 
     # --- toggle methods ---
-    def toggle_overlay(self) -> None:
+    def toggle_stats_overlay(self) -> None:
+        if not self.main_window:
+            self.ui_queue.put_nowait({'type': 'status', 'message': 'Main window reference missing'})
+            return
         try:
-            worker_name = 'overlay'
-            self.ui_queue.put_nowait({'type': 'status', 'message': 'Processing overlay...'})
-            if self.app.is_worker_running(worker_name):
-                success = self.app.stop_worker(worker_name)
-                if success:
-                    self.ui_queue.put_nowait({'type': 'worker_state', 'worker': 'overlay', 'state': False})
-                    self.ui_queue.put_nowait({'type': 'status', 'message': 'Overlay: STOPPED'})
-                else:
-                    self.ui_queue.put_nowait({'type': 'status', 'message': 'Error: Failed to stop overlay'})
-            else:
-                success = self.app.start_worker(worker_name)
-                if success:
-                    self.ui_queue.put_nowait({'type': 'worker_state', 'worker': 'overlay', 'state': True})
-                    self.ui_queue.put_nowait({'type': 'status', 'message': 'Overlay: RUNNING'})
-                else:
-                    self.ui_queue.put_nowait({'type': 'status', 'message': 'Error: Failed to start overlay'})
+            self.main_window.toggle_stats_overlay()
         except Exception as e:
-            logging.error(f"Toggle overlay error: {e}")
+            logging.error(f"Toggle stats overlay error: {e}")
             self.ui_queue.put_nowait({'type': 'status', 'message': f'Error: {str(e)[:50]}'})
 
     def toggle_screen_overlay(self) -> None:
+        if not self.main_window:
+            self.ui_queue.put_nowait({'type': 'status', 'message': 'Main window reference missing'})
+            return
         try:
-            worker_name = 'screen_overlay'
-            self.ui_queue.put_nowait({'type': 'status', 'message': 'Processing screen overlay...'})
-            if self.app.is_worker_running(worker_name):
-                success = self.app.stop_worker(worker_name)
-                if success:
-                    self.ui_queue.put_nowait({'type': 'worker_state', 'worker': 'screen_overlay', 'state': False})
-                    self.ui_queue.put_nowait({'type': 'status', 'message': 'Screen overlay: STOPPED'})
-                else:
-                    self.ui_queue.put_nowait({'type': 'status', 'message': 'Error: Failed to stop screen overlay'})
-            else:
-                success = self.app.start_worker(worker_name)
-                if success:
-                    self.ui_queue.put_nowait({'type': 'worker_state', 'worker': 'screen_overlay', 'state': True})
-                    self.ui_queue.put_nowait({'type': 'status', 'message': 'Screen overlay: RUNNING'})
-                else:
-                    self.ui_queue.put_nowait({'type': 'status', 'message': 'Error: Failed to start screen overlay'})
+            self.main_window.toggle_screen_overlay()
         except Exception as e:
             logging.error(f"Toggle screen overlay error: {e}")
             self.ui_queue.put_nowait({'type': 'status', 'message': f'Error: {str(e)[:50]}'})
 
-    def update_worker_button(self, worker: str, is_running: bool) -> None:
-        if worker == 'overlay':
-            if is_running:
+    def set_overlay_button_state(self, overlay_type: str, is_active: bool) -> None:
+        if overlay_type == 'stats':
+            if is_active:
                 self.overlay_btn.configure(text="Stats Overlay: (on)", fg_color="#28a745", hover_color="#218838")
             else:
                 self.overlay_btn.configure(text="Stats Overlay: (off)", fg_color="#6c757d", hover_color="#5a6268")
-        elif worker == 'screen_overlay':
-            if is_running:
+        elif overlay_type == 'screen':
+            if is_active:
                 self.screen_overlay_btn.configure(text="Screen Overlay: (on)", fg_color="#28a745", hover_color="#218838")
             else:
                 self.screen_overlay_btn.configure(text="Screen Overlay: (off)", fg_color="#6c757d", hover_color="#5a6268")

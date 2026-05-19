@@ -32,38 +32,20 @@ class PewPyApplication :
         with self._lock :
             try :
                 from pewpy.workers.auto_clicker import AutoClicker
-                from pewpy.workers.overlay import Overlay
+                # Remove old overlay imports; we keep OverlayData for communication
                 from pewpy.workers.overlay_communication import OverlayData
-                
+
                 # Create a shared data bridge for inter-worker communication
                 overlay_data = OverlayData()
-                
+                # Expose it for the UI
+                self.overlay_data = overlay_data
+
                 # AutoClicker with config (unchanged)
                 interval = self.config.get('workers.auto_clicker.default_interval', 0.1)
                 button = self.config.get('workers.auto_clicker.button', 'left')
                 self.workers['auto_clicker'] = AutoClicker(click_interval=interval, button=button)
-                
-                # Overlay with config (unchanged)
-                pos = self.config.get('workers.overlay.position', [0,0])
-                size = self.config.get('workers.overlay.size', [300,200])
-                opacity = self.config.get('workers.overlay.opacity', 0.7)
-                self.workers['overlay'] = Overlay(position=tuple(pos), size=tuple(size), opacity=opacity)
-                
-                # Screen Overlay
-                try :
-                    from pewpy.workers.screen_overlay import ScreenOverlay
-                    self.workers['screen_overlay'] = ScreenOverlay(
-                        color="red",
-                        opacity=0.5,
-                        overlay_data=overlay_data # new
-                    )
-                    logging.info("ScreenOverlay worker loaded")
-                except ImportError :
-                    logging.info("ScreenOverlay worker not available (import failed)")
-                except Exception as e :
-                    logging.warning(f"ScreenOverlay worker init failed: {e}")
-                
-                # Aimbot - try to load, but make optional
+
+                # Aimbot
                 try:
                     from pewpy.workers.aimbot import AimbotWorker
                     aimbot_cfg = self.config.get('workers.aimbot', {})
@@ -76,14 +58,16 @@ class PewPyApplication :
                         ),
                         smooth_factor=aimbot_cfg.get('smooth_factor', 0.2),
                         activation_key=aimbot_cfg.get('activation_key', 'alt_l'),
-                        overlay_data=overlay_data                # new
+                        overlay_data=overlay_data
                     )
                     logging.info("Aimbot worker loaded")
                 except ImportError:
                     logging.info("Aimbot worker not available (import failed)")
                 except Exception as e:
                     logging.warning(f"Aimbot worker init failed: {e}")
-                
+
+                # Overlay workers are now managed by the UI – do NOT create them here
+
                 logging.debug("Workers initialized from config")
             except ImportError as e :
                 logging.error(f"Failed to import worker: {e}")

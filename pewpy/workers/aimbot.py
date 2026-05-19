@@ -90,7 +90,6 @@ class AimbotWorker(BaseWorker):
             return
         try :
             screen_x, screen_y = detection['screen_position']
-            # Use actual screen dimensions
             target_x = int(screen_x * self._screen_width)
             target_y = int(screen_y * self._screen_height)
             current_x, current_y = self.mouse.position
@@ -103,6 +102,9 @@ class AimbotWorker(BaseWorker):
                 smoothed_y = current_y + (target_y - current_y) * self.smooth_factor
             self.mouse.position = (int(smoothed_x), int(smoothed_y))
             self.last_target_pos = (smoothed_x, smoothed_y)
+            # Share mouse position for the screen overlay
+            if self.overlay_data is not None:
+                self.overlay_data.update({'mouse_pos': (int(smoothed_x), int(smoothed_y))})
         except Exception as e :
             logging.error(f"Mouse movement error: {e}")
 

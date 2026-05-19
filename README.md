@@ -1,4 +1,4 @@
-# PewPy (v1.0.0)
+# PewPy
 
 A high‑performance, low‑latency aimbot application written in Python 3.13, leveraging modern multiprocessing and multithreading for optimal performance. Features real‑time screen capture, GPU‑accelerated target detection, and adaptive resource management.
 
@@ -45,6 +45,8 @@ All workers can be toggled on/off independently through a modern `customtkinter`
 ├── config/
 │   ├── default.yaml               # core application settings
 │   └── performance.yaml           # user‑override / performance tuning
+├── docs/
+│   └── ToDo.md
 ├── logs/                          # runtime logs (not tracked)
 ├── pewpy/
 │   ├── core/
@@ -125,3 +127,11 @@ All workers can be toggled on/off independently through a modern `customtkinter`
 ## Additional-Information
 
 This portion is for logging or storing notes relevent to the project and its scope. 
+
+### Overlay Architecture
+
+The overlay system (`pewpy/ui/overlays.py`) is completely decoupled from Tkinter. Each overlay is a native Win32 window created with `WS_EX_LAYERED` and `WS_EX_TOPMOST`. A single, shared window procedure handles all overlays: it returns `HTTRANSPARENT` for `WM_NCHITTEST` to guarantee click‑through behaviour, and it dispatches `WM_PAINT` to the respective overlay’s `_on_paint` method.  
+
+Painting uses the standard `BeginPaint`/`EndPaint` cycle together with a GDI memory DC for flicker‑free double‑buffering. All GDI resources are correctly released, and any painting exception is caught and logged without crashing the message pump.  
+
+The pointer‑sized types `WPARAM_T`/`LPARAM_T` are defined explicitly to prevent `OverflowError` on 64‑bit systems, and `DefWindowProcW.argtypes` is set accordingly. The result is a robust, visually clean overlay that never blocks mouse input and remains stable regardless of how often it is shown or hidden.
