@@ -3,6 +3,7 @@
 
 # ----- Imports ----- 
 import threading
+import logging
 from typing import Dict, Any
 
 # ----- Main Class ----- 
@@ -15,9 +16,13 @@ class OverlayData :
         self._data: Dict[str, Any] = {}
 
     def update(self, data: Dict[str, Any]) -> None:
-        # Merge new key‑value pairs into the shared data
         with self._lock:
             self._data.update(data)
+            # Log only when target_center is present or cleared
+            if 'target_center' in data:
+                logging.debug(f"OverlayData updated: target_center={data.get('target_center')}")
+            if 'target_center' in data and data['target_center'] is None:
+                logging.debug("OverlayData cleared target_center")
 
     def get(self) -> Dict[str, Any]:
         # Return a copy of the current data
@@ -28,3 +33,4 @@ class OverlayData :
         # Remove all stored data
         with self._lock:
             self._data.clear()
+            logging.debug("OverlayData cleared completely")

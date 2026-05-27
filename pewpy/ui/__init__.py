@@ -2,7 +2,7 @@
 #   User interface components for configuration and overlay
 
 # ----- Imports ----- #
-from .main_window import MainWindow
+from pewpy.ui.main_window import ModernMainWindow as MainWindow
 
 __all__ = [
     "MainWindow"

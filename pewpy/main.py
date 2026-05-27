@@ -52,7 +52,7 @@ def main() -> int :
         # Import after path setup (package installed or run from root)
         from pewpy.core.app_manager import PewPyApplication
         from pewpy.core.config import Config
-        from pewpy.ui.main_window import MainWindow
+        from pewpy.ui.main_window import ModernMainWindow as MainWindow
         
         # Load configuration
         config = Config()

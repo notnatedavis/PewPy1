@@ -1,19 +1,144 @@
 #   pewpy/ui/tabs/general_tab.py
-#   General tab: title, placeholders, status bar, and live debug panel
+#   General tab: title, placeholders, status bar, and a separate debug window
+#   with live logging and diagnostics.
 
 # ----- Imports ----- #
 import customtkinter as ctk
 import logging
 import threading
 import time
+import tkinter as tk
 from .base_tab import BaseTab
 
-# ----- Main Class ----- #
+# ----- Custom Logging Handler for Debug Window -----
+class DebugWindowHandler(logging.Handler):
+    """Forward log records to the debug window via the UI queue."""
+    def __init__(self, ui_queue):
+        super().__init__()
+        self.ui_queue = ui_queue
+        self.setLevel(logging.DEBUG)
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            self.ui_queue.put_nowait({'type': 'debug_log', 'log': msg})
+        except Exception:
+            pass  # avoid recursion
+
+# ----- Debug Window Class (separate toplevel) -----
+class DebugWindow(ctk.CTkToplevel):
+    """Standalone window that displays live diagnostics and logs from PewPy."""
+    def __init__(self, master=None, ui_queue=None):
+        super().__init__(master)
+        self.ui_queue = ui_queue
+        self.title("PewPy Debug Console")
+        self.geometry("600x500")
+        self.minsize(500, 400)
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
+
+        # Create tabview for separate panes
+        self.tabview = ctk.CTkTabview(self)
+        self.tabview.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Stats tab
+        self.stats_tab = self.tabview.add("System Stats")
+        self.stats_text = ctk.CTkTextbox(
+            self.stats_tab,
+            fg_color="#1e1e1e",
+            text_color="#cccccc",
+            font=ctk.CTkFont(size=10, family="Courier"),
+            state="disabled"
+        )
+        self.stats_text.pack(fill="both", expand=True, padx=5, pady=5)
+
+        # Logs tab
+        self.logs_tab = self.tabview.add("Live Logs")
+        self.logs_text = ctk.CTkTextbox(
+            self.logs_tab,
+            fg_color="#1e1e1e",
+            text_color="#cccccc",
+            font=ctk.CTkFont(size=10, family="Courier"),
+            state="disabled"
+        )
+        self.logs_text.pack(fill="both", expand=True, padx=5, pady=5)
+
+        self._closed = False
+        self._log_buffer = []       # keep last 500 lines
+        self._max_log_lines = 500
+
+    def update_stats(self, data: dict) -> None:
+        """Update the system statistics pane."""
+        if self._closed:
+            return
+        lines = []
+        # Worker summary
+        w = data.get('workers', {})
+        lines.append(f"--- Workers ({w.get('running_workers', 0)}/{w.get('total_workers', 0)}) ---")
+        for name, info in w.get('worker_details', {}).items():
+            state = info.get('state', '?')
+            alive = "alive" if info.get('thread_alive') else "dead"
+            runtime = info.get('runtime_seconds', 0)
+            errors = info.get('error_count', 0)
+            lines.append(f"  {name}: {state} ({alive}) | {runtime:.1f}s | errors:{errors}")
+
+        # System
+        lines.append(f"CPU: {data.get('cpu', 'N/A')}%")
+        lines.append(f"RAM: {data.get('mem', 'N/A')}%")
+        lines.append(f"Resource Manager: {'ON' if data.get('rm_running') else 'OFF'}")
+
+        if 'error' in data:
+            lines.append(f"ERROR: {data['error']}")
+
+        text = "\n".join(lines)
+        if not self._closed:
+            self.after(0, self._update_text, self.stats_text, text)
+
+    def add_log(self, log_msg: str) -> None:
+        """Append a log message to the logs pane."""
+        if self._closed:
+            return
+        # Add timestamp
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        formatted = f"[{timestamp}] {log_msg}"
+        self._log_buffer.append(formatted)
+        if len(self._log_buffer) > self._max_log_lines:
+            self._log_buffer.pop(0)
+        # Update widget
+        if not self._closed:
+            self.after(0, self._update_logs)
+
+    def _update_text(self, text_widget, text: str) -> None:
+        if self._closed:
+            return
+        text_widget.configure(state="normal")
+        text_widget.delete("1.0", "end")
+        text_widget.insert("1.0", text)
+        text_widget.configure(state="disabled")
+
+    def _update_logs(self) -> None:
+        if self._closed:
+            return
+        full_log = "\n".join(self._log_buffer)
+        self.logs_text.configure(state="normal")
+        self.logs_text.delete("1.0", "end")
+        self.logs_text.insert("1.0", full_log)
+        self.logs_text.configure(state="disabled")
+        # Auto-scroll to bottom
+        self.logs_text.see("end")
+
+    def on_close(self) -> None:
+        self._closed = True
+        self.destroy()
+
+# ----- Main General Tab -----
 class GeneralTab(BaseTab):
     def __init__(self, parent_tab, app, ui_queue):
         super().__init__(parent_tab, app, ui_queue)
         self._diagnostics_running = False
         self._diagnostics_thread = None
+        self.debug_window = None  # reference to DebugWindow instance
+        self._log_handler = None   # custom logging handler
 
     def _create_widgets(self) -> None:
         # Title
@@ -59,30 +184,16 @@ class GeneralTab(BaseTab):
         )
         self.status_bar.pack(pady=(20, 10), anchor="center")
 
-        # ------------------ Debug Panel ------------------
-        self.debug_visible = False
-        self.debug_toggle_btn = ctk.CTkButton(
+        # Debug window button
+        self.debug_btn = ctk.CTkButton(
             self.frame,
-            text="Show Debug",
-            command=self._toggle_debug_panel,
-            width=120,
+            text="Open Debug Window",
+            command=self._toggle_debug_window,
+            width=140,
             height=30,
             font=ctk.CTkFont(size=11)
         )
-        self.debug_toggle_btn.pack(pady=(0, 5), anchor="center")
-
-        # Debug frame (initially hidden)
-        self.debug_frame = ctk.CTkFrame(self.frame, fg_color="#2b2b2b")
-        self.debug_text = ctk.CTkTextbox(
-            self.debug_frame,
-            width=380,
-            height=200,
-            fg_color="#1e1e1e",
-            text_color="#cccccc",
-            font=ctk.CTkFont(size=10, family="Courier"),
-            state="disabled"
-        )
-        self.debug_text.pack(fill="both", expand=True, padx=5, pady=5)
+        self.debug_btn.pack(pady=(0, 5), anchor="center")
 
     def set_status(self, message: str) -> None:
         self.status_var.set(message)
@@ -90,17 +201,36 @@ class GeneralTab(BaseTab):
     def _placeholder_action(self, name: str) -> None:
         logging.info(f"Placeholder '{name}' clicked")
 
-    # --- Debug panel toggling ---
-    def _toggle_debug_panel(self) -> None:
-        self.debug_visible = not self.debug_visible
-        if self.debug_visible:
-            self.debug_frame.pack(pady=(0, 10), anchor="center", fill="both", expand=True)
-            self.debug_toggle_btn.configure(text="Hide Debug")
+    # --- Debug window management ---
+    def _toggle_debug_window(self) -> None:
+        if self.debug_window is None or not self.debug_window.winfo_exists():
+            self.debug_window = DebugWindow(self.frame.winfo_toplevel(), self.ui_queue)
+            self.debug_btn.configure(text="Close Debug Window")
+            # Install custom log handler
+            self._install_log_handler()
             self._start_diagnostics()
+            logging.info("Debug window opened")
         else:
-            self.debug_frame.pack_forget()
-            self.debug_toggle_btn.configure(text="Show Debug")
+            self.debug_window.on_close()
+            self.debug_window = None
+            self.debug_btn.configure(text="Open Debug Window")
+            self._remove_log_handler()
             self._stop_diagnostics()
+            logging.info("Debug window closed")
+
+    def _install_log_handler(self) -> None:
+        if self._log_handler is None:
+            self._log_handler = DebugWindowHandler(self.ui_queue)
+            self._log_handler.setFormatter(logging.Formatter('%(levelname)s - %(name)s - %(message)s'))
+            logging.getLogger().addHandler(self._log_handler)
+            logging.getLogger().setLevel(logging.DEBUG)  # ensure DEBUG messages are captured
+            logging.debug("Custom debug logging handler installed")
+
+    def _remove_log_handler(self) -> None:
+        if self._log_handler:
+            logging.getLogger().removeHandler(self._log_handler)
+            self._log_handler = None
+            logging.debug("Custom debug logging handler removed")
 
     def _start_diagnostics(self) -> None:
         if self._diagnostics_running:
@@ -113,7 +243,7 @@ class GeneralTab(BaseTab):
         )
         self._diagnostics_thread.start()
 
-    def _stop_diagnostics(self) -> None :
+    def _stop_diagnostics(self) -> None:
         self._diagnostics_running = False
         if self._diagnostics_thread and self._diagnostics_thread.is_alive():
             self._diagnostics_thread.join(timeout=1.0)
@@ -144,33 +274,11 @@ class GeneralTab(BaseTab):
             time.sleep(2)
 
     def update_debug_info(self, data: dict) -> None :
-        # Format the collected diagnostics and display in the textbox
-        if not self.debug_visible:
-            return
+        """Forward system stats to the debug window (if open)."""
+        if self.debug_window and not self.debug_window._closed:
+            self.debug_window.update_stats(data)
 
-        lines = []
-        # Worker summary
-        w = data.get('workers', {})
-        lines.append(f"--- Workers ({w.get('running_workers', 0)}/{w.get('total_workers', 0)}) ---")
-        for name, info in w.get('worker_details', {}).items():
-            state = info.get('state', '?')
-            alive = "alive" if info.get('thread_alive') else "dead"
-            runtime = info.get('runtime_seconds', 0)
-            errors = info.get('error_count', 0)
-            lines.append(f"  {name}: {state} ({alive}) | {runtime:.1f}s | errors:{errors}")
-
-        # System
-        lines.append(f"CPU: {data.get('cpu', 'N/A')}%")
-        lines.append(f"RAM: {data.get('mem', 'N/A')}%")
-        lines.append(f"Resource Manager: {'ON' if data.get('rm_running') else 'OFF'}")
-
-        if 'error' in data:
-            lines.append(f"ERROR: {data['error']}")
-
-        text = "\n".join(lines)
-
-        # Update the widget in a thread‑safe manner
-        self.debug_text.configure(state="normal")
-        self.debug_text.delete("1.0", "end")
-        self.debug_text.insert("1.0", text)
-        self.debug_text.configure(state="disabled")
+    def handle_debug_log(self, log_msg: str) -> None:
+        """Forward a log message to the debug window."""
+        if self.debug_window and not self.debug_window._closed:
+            self.debug_window.add_log(log_msg)

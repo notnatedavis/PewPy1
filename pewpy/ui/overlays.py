@@ -72,6 +72,7 @@ if platform.system() == "Windows" :
     WS_EX_LAYERED = 0x00080000             # required for SetLayeredWindowAttributes
     WS_EX_TOPMOST = 0x00000008             # always on top
     WS_EX_TOOLWINDOW = 0x00000080          # doesn't appear in taskbar
+    WS_EX_TRANSPARENT = 0x00000020         # mouse clicks pass through completely
 
     SW_SHOW = 5
     SW_HIDE = 0
@@ -179,6 +180,7 @@ if platform.system() == "Windows" :
     LineTo = gdi32.LineTo
     CreatePen = gdi32.CreatePen
     Rectangle = gdi32.Rectangle
+    Ellipse = gdi32.Ellipse # added for mouse outline
 
     # Obtain the module instance for registering the window class
     hinst = kernel32.GetModuleHandleW(None)
@@ -256,7 +258,7 @@ if platform.system() == "Windows" :
             RegisterClassExW(byref(wc))
 
             hwnd = CreateWindowExW(
-                WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
+                WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT,
                 self._class_name,
                 "",
                 WS_POPUP,
@@ -447,8 +449,8 @@ class StatsOverlay(_NativeOverlay) :
 # 10. ScreenOverlay – full‑screen drawing canvas
 class ScreenOverlay(_NativeOverlay) :
     # Full‑screen, semi‑transparent overlay that can draw bounding boxes,
-    # crosshairs, and other visual indicators.  All mouse events pass through
-    # to the windows underneath
+    # crosshairs, mouse outline circle, and a target render circle.
+    # All mouse events pass through to the windows underneath
     def __init__(self, master=None, opacity: float = 0.4) -> None :
         self._shapes: Dict[str, Any] = {}
         super().__init__(opacity, class_name="PewPyScreenOverlay")
@@ -462,15 +464,20 @@ class ScreenOverlay(_NativeOverlay) :
 
     def update_drawings(self, data: Dict[str, Any]) -> None :
         # Thread‑safe update of the drawing commands (bbox, mouse position, etc.)
-
         with self._data_lock :
             self._shapes = data.copy()
+            # Log when target render data arrives
+            if data.get('target_outline'):
+                logging.debug(f"ScreenOverlay.update_drawings: target_outline=True, pos={data.get('target_outline_pos')}")
+            elif data.get('target_outline') is False and 'target_outline' in data:
+                logging.debug("ScreenOverlay.update_drawings: target_outline disabled")
         self._post_repaint()
 
     def _on_paint(self) -> None :
         # GDI paint handler
-        # Clears the background to black, then draws a red bounding box and a
-        # green crosshair based on the latest shape data
+        # Clears the background to black, then draws a red bounding box, a
+        # green crosshair, optionally a white mouse outline circle, and a
+        # prominent red target render circle with crosshair.
         # Uses double‑buffering and BeginPaint/EndPaint just like StatsOverlay
         
         if not self._hwnd :
@@ -497,6 +504,9 @@ class ScreenOverlay(_NativeOverlay) :
         # ----- Pens -----
         red_pen = CreatePen(0, 2, 0x000000FF)         # PS_SOLID, red
         green_pen = CreatePen(0, 2, 0x0000FF00)       # PS_SOLID, green
+        white_pen = CreatePen(0, 1, 0x00FFFFFF)       # PS_SOLID, white (mouse outline)
+        # Target render pen: thick red
+        target_pen = CreatePen(0, 3, 0x000000FF)      # PS_SOLID, width 3, red
         old_pen = SelectObject(mem_dc, red_pen)
 
         with self._data_lock:
@@ -520,10 +530,48 @@ class ScreenOverlay(_NativeOverlay) :
             MoveToEx(mem_dc, mx, my - r, None)
             LineTo(mem_dc, mx, my + r)
 
+        # ----- Mouse outline circle (only if enabled) -----
+        if shapes.get('mouse_outline'):
+            outline_pos = shapes.get('mouse_outline_pos')
+            if outline_pos and len(outline_pos) == 2:
+                ox, oy = outline_pos
+                radius = 8
+                # Use a hollow brush to keep the inside transparent
+                hollow_brush = gdi32.GetStockObject(5)  # NULL_BRUSH
+                old_brush = SelectObject(mem_dc, hollow_brush)
+                SelectObject(mem_dc, white_pen)
+                Ellipse(mem_dc, ox - radius, oy - radius, ox + radius, oy + radius)
+                SelectObject(mem_dc, old_brush)          # restore brush
+
+        # ----- Target render circle (only if enabled) – enhanced visibility -----
+        if shapes.get('target_outline'):
+            target_pos = shapes.get('target_outline_pos')
+            if target_pos and len(target_pos) == 2:
+                tx, ty = target_pos
+                radius = 12  # larger radius for visibility
+                # Hollow brush for transparent interior
+                hollow_brush = gdi32.GetStockObject(5)  # NULL_BRUSH
+                old_brush2 = SelectObject(mem_dc, hollow_brush)
+                # Use the thick red pen for the outline
+                SelectObject(mem_dc, target_pen)
+                Ellipse(mem_dc, tx - radius, ty - radius, tx + radius, ty + radius)
+                # Draw a red crosshair inside the circle
+                MoveToEx(mem_dc, tx - 6, ty, None)
+                LineTo(mem_dc, tx + 6, ty)
+                MoveToEx(mem_dc, tx, ty - 6, None)
+                LineTo(mem_dc, tx, ty + 6)
+                # Restore brush
+                SelectObject(mem_dc, old_brush2)
+                logging.debug(f"ScreenOverlay: Drew target circle at ({tx},{ty})")
+            else:
+                logging.debug("ScreenOverlay: target_outline enabled but no valid position")
+
         # ----- Restore and blit -----
         SelectObject(mem_dc, old_pen)
         DeleteObject(red_pen)
         DeleteObject(green_pen)
+        DeleteObject(white_pen)
+        DeleteObject(target_pen)
 
         BitBlt(hdc, 0, 0, w, h, mem_dc, 0, 0, SRCCOPY)
 
@@ -531,4 +579,102 @@ class ScreenOverlay(_NativeOverlay) :
         DeleteObject(bmp)
         DeleteDC(mem_dc)
 
+        EndPaint(self._hwnd, byref(ps))
+
+# 11. MaskOverlay – debug preview of the detection mask
+class MaskOverlay(_NativeOverlay) :
+    """Small overlay that displays the binary detection mask.
+    Updates are driven from the main thread using the mask data from overlay_data."""
+
+    def __init__(self, master=None, opacity: float = 0.8,
+                 size: tuple = (200, 200)) -> None:
+        self.size = size
+        self._mask_image: Optional[np.ndarray] = None   # 2D uint8 grayscale
+        super().__init__(opacity, class_name="PewPyMaskOverlay")
+
+        # Position near bottom-left corner
+        if self._hwnd :
+            screen_h = user32.GetSystemMetrics(1)
+            x = 10
+            y = screen_h - self.size[1] - 60
+            SetWindowPos(self._hwnd, None, x, y,
+                         self.size[0], self.size[1], 0)
+
+    def update_mask(self, mask: np.ndarray) -> None:
+        """Thread‑safe update of the mask image."""
+        if mask is None:
+            return
+        # Resize to fit the overlay window
+        resized = cv2.resize(mask, self.size, interpolation=cv2.INTER_NEAREST)
+        with self._data_lock:
+            self._mask_image = resized
+        self._post_repaint()
+
+    def _on_paint(self) -> None:
+        if not self._hwnd:
+            return
+
+        ps = PAINTSTRUCT()
+        hdc = BeginPaint(self._hwnd, byref(ps))
+        if not hdc:
+            return
+
+        rect = ps.rcPaint
+        w = rect.right - rect.left
+        h = rect.bottom - rect.top
+        mem_dc = CreateCompatibleDC(hdc)
+        bmp = CreateCompatibleBitmap(hdc, w, h)
+        old_bmp = SelectObject(mem_dc, bmp)
+
+        # Clear to black
+        brush = gdi32.CreateSolidBrush(0x00000000)
+        FillRect(mem_dc, byref(rect), brush)
+        gdi32.DeleteObject(brush)
+
+        with self._data_lock:
+            mask = self._mask_image.copy() if self._mask_image is not None else None
+
+        if mask is not None:
+            # Convert numpy mask to Windows bitmap and draw
+            try:
+                # Create a 24-bit RGB version: white where mask > 0, black elsewhere
+                color_mask = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
+                color_mask[mask > 0] = [255, 255, 255]
+
+                # Create a BITMAPINFO structure
+                class BITMAPINFOHEADER(ctypes.Structure):
+                    _fields_ = [("biSize", wintypes.DWORD),
+                                ("biWidth", ctypes.c_long),
+                                ("biHeight", ctypes.c_long),
+                                ("biPlanes", wintypes.WORD),
+                                ("biBitCount", wintypes.WORD),
+                                ("biCompression", wintypes.DWORD),
+                                ("biSizeImage", wintypes.DWORD),
+                                ("biXPelsPerMeter", ctypes.c_long),
+                                ("biYPelsPerMeter", ctypes.c_long),
+                                ("biClrUsed", wintypes.DWORD),
+                                ("biClrImportant", wintypes.DWORD)]
+                bmi = BITMAPINFOHEADER()
+                bmi.biSize = ctypes.sizeof(BITMAPINFOHEADER)
+                bmi.biWidth = self.size[0]
+                bmi.biHeight = -self.size[1]  # top-down bitmap
+                bmi.biPlanes = 1
+                bmi.biBitCount = 24
+                bmi.biCompression = 0  # BI_RGB
+
+                # Use StretchDIBits to paint
+                gdi32.StretchDIBits(
+                    mem_dc, 0, 0, self.size[0], self.size[1],
+                    0, 0, self.size[0], self.size[1],
+                    color_mask.ctypes.data_as(ctypes.POINTER(ctypes.c_byte)),
+                    ctypes.byref(bmi), 0, SRCCOPY
+                )
+            except Exception as e:
+                logging.error(f"Mask paint error: {e}")
+
+        BitBlt(hdc, 0, 0, w, h, mem_dc, 0, 0, SRCCOPY)
+
+        SelectObject(mem_dc, old_bmp)
+        DeleteObject(bmp)
+        DeleteDC(mem_dc)
         EndPaint(self._hwnd, byref(ps))

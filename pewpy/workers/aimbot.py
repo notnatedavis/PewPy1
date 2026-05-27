@@ -1,5 +1,6 @@
 #   pewpy/workers/aimbot.py
 #   Aimbot worker (passive) coordinating capture, detection, mouse.
+#   Now publishes the detection mask for live preview.
 
 # ----- Imports ----- #
 import threading
@@ -7,13 +8,14 @@ import time
 import logging
 from typing import Optional, Tuple, Dict, Any
 import numpy as np
-try :
+try:
     import pynput
     from pynput.mouse import Button, Controller as MouseController
+    from pynput.keyboard import Key, Listener as KeyboardListener, KeyCode
     PYNPUT_AVAILABLE = True
-except ImportError :
+except ImportError:
     PYNPUT_AVAILABLE = False
-    logging.warning("pynput not available - aimbot mouse control disabled")
+    logging.warning("pynput not available - aimbot mouse/keyboard control disabled")
 from .function_worker import BaseWorker
 from .screen_capturer import ScreenCapturer
 from .target_detector import TargetDetector
@@ -21,131 +23,250 @@ from .overlay_communication import OverlayData
 
 # ----- Main Class ----- #
 class AimbotWorker(BaseWorker):
-    # Aimbot: captures screen, detects targets, moves mouse
-    
+    """Aimbot: captures screen, detects targets, moves mouse.
+    Activation key toggles the aiming on/off while the worker is running.
+    ROI mode restricts detection to a circular area around the mouse cursor.
+    Outline mode (thin target detection) can be toggled via the UI."""
+
     def __init__(self, 
                  capture_region: Optional[Tuple[int, int, int, int]] = None,
                  target_fps: int = 60,
                  hsv_range: Tuple[Tuple[int, int, int], Tuple[int, int, int]] = ((0, 120, 70), (10, 255, 255)),
                  smooth_factor: float = 0.2,
                  activation_key: str = 'alt_l',
-                 overlay_data: Optional[OverlayData] = None) -> None :
+                 overlay_data: Optional[OverlayData] = None) -> None:
         super().__init__()
         self.capture_region = capture_region
         self.target_fps = target_fps
         self.smooth_factor = max(0.01, min(1.0, smooth_factor))
         self.activation_key = activation_key
         self.overlay_data = overlay_data
-        
+
+        # ROI (region of interest) settings
+        self.roi_enabled = False
+        self.roi_radius = 150  # pixels, default radius around mouse
+
         self.capturer = ScreenCapturer(region=capture_region, target_fps=target_fps)
         self.detector = TargetDetector(lower_hsv=hsv_range[0], upper_hsv=hsv_range[1])
         self.mouse = MouseController() if PYNPUT_AVAILABLE else None
-        
-        self.is_active = False
+
+        # Aiming toggle – controlled by the activation key (starts disabled)
+        self._aiming_enabled = threading.Event()
+
         self.last_target_pos: Optional[Tuple[float, float]] = None
         self.state_lock = threading.RLock()
         self.frame_count = 0
         self.detection_count = 0
-        
+
+        # Keyboard listener references
+        self._keyboard_listener: Optional[KeyboardListener] = None
+        self._keyboard_lock = threading.Lock()
+
         # Cache screen dimensions (populated when capturer starts)
         self._screen_width = 1920
         self._screen_height = 1080
         logging.info(f"Aimbot initialized - Region: {capture_region}, FPS: {target_fps}")
-    
-    def _work_cycle(self) -> None :
-        # Called repeatedly by the worker thread
-        if not PYNPUT_AVAILABLE :
+
+    # ----- Activation key toggle logic -----
+    def _on_key_press(self, key) -> None:
+        """Toggle aiming when the configured activation key is pressed."""
+        try:
+            target = self.activation_key
+            if isinstance(key, Key):
+                if str(key) == target:
+                    self._toggle_aiming()
+            elif isinstance(key, KeyCode):
+                if key.char == target:
+                    self._toggle_aiming()
+        except Exception as e:
+            logging.error(f"Key press handler error: {e}")
+
+    def _toggle_aiming(self) -> None:
+        if self._aiming_enabled.is_set():
+            self._aiming_enabled.clear()
+            logging.info("Aiming DISABLED by activation key")
+        else:
+            self._aiming_enabled.set()
+            logging.info("Aiming ENABLED by activation key")
+
+    def _start_keyboard_listener(self) -> None:
+        if not PYNPUT_AVAILABLE:
             return
-        # Wait for new frame (non-blocking)
-        if self.capturer.wait_for_frame(timeout=0.001) :
+        with self._keyboard_lock:
+            if self._keyboard_listener and self._keyboard_listener.running:
+                return
+            self._keyboard_listener = KeyboardListener(on_press=self._on_key_press)
+            self._keyboard_listener.start()
+            logging.info(f"Keyboard listener started (key={self.activation_key})")
+
+    def _stop_keyboard_listener(self) -> None:
+        with self._keyboard_lock:
+            if self._keyboard_listener and self._keyboard_listener.running:
+                self._keyboard_listener.stop()
+                self._keyboard_listener = None
+                logging.info("Keyboard listener stopped")
+
+    # ----- Work cycle -----
+    def _work_cycle(self) -> None:
+        """Called repeatedly by the worker thread. Only processes frames when aiming is enabled."""
+        if not PYNPUT_AVAILABLE:
+            return
+        if self.capturer.wait_for_frame(timeout=0.001):
             self._process_frame()
-    
-    def _process_frame(self) -> None :
+
+    def _process_frame(self) -> None:
         frame = self.capturer.get_latest_frame()
-        if frame is None :
+        if frame is None:
             return
         self.frame_count += 1
-        detection = self.detector.detect_targets(frame)
-        with self.state_lock :
-            # Placeholder: activation key detection (could be extended)
-            self.is_active = True  # For demo
-            if detection is not None and self.is_active :
+
+        roi_enabled = self.roi_enabled
+        roi_offset = (0, 0)
+        detection_frame = frame
+        if roi_enabled and self.mouse is not None:
+            mouse_x, mouse_y = self.mouse.position
+            mouse_x = max(0, min(frame.shape[1] - 1, mouse_x))
+            mouse_y = max(0, min(frame.shape[0] - 1, mouse_y))
+            radius = self.roi_radius
+            x1 = max(0, mouse_x - radius)
+            y1 = max(0, mouse_y - radius)
+            x2 = min(frame.shape[1], mouse_x + radius)
+            y2 = min(frame.shape[0], mouse_y + radius)
+            if x2 > x1 and y2 > y1:
+                detection_frame = frame[y1:y2, x1:x2]
+                roi_offset = (x1, y1)
+                logging.debug(f"Aimbot: ROI active, mouse=({mouse_x},{mouse_y}), ROI region=({x1},{y1})-({x2},{y2})")
+            else:
+                detection_frame = None
+                logging.debug("Aimbot: ROI region invalid, skipping detection")
+
+        detection = None
+        if detection_frame is not None:
+            detection = self.detector.detect_targets(detection_frame)
+            if detection is not None:
+                logging.debug(f"Aimbot: Detection found! Confidence={detection.get('confidence',0):.2f}, center={detection['center']}")
+                if roi_offset != (0,0):
+                    center_abs = (detection['center'][0] + roi_offset[0], detection['center'][1] + roi_offset[1])
+                    detection['center'] = center_abs
+                    detection['bounding_box'] = (detection['bounding_box'][0] + roi_offset[0],
+                                                 detection['bounding_box'][1] + roi_offset[1],
+                                                 detection['bounding_box'][2],
+                                                 detection['bounding_box'][3])
+                    detection['screen_position'] = (center_abs[0] / self._screen_width,
+                                                    center_abs[1] / self._screen_height)
+                    logging.debug(f"Aimbot: Converted to absolute center={center_abs}")
+            else:
+                logging.debug("Aimbot: No target detected in current frame")
+
+        # Get mask for preview (even if no detection)
+        mask = self.detector.get_latest_mask()
+
+        # Always publish to overlay
+        if self.overlay_data is not None:
+            data_to_send = {}
+            if detection is not None:
                 self.detection_count += 1
-                # Publish detection to overlay data bridge
-                if self.overlay_data is not None:
-                    self.overlay_data.update({
-                        'target': detection['screen_position'],  # (x,y) normalised
-                        'bbox': detection['bounding_box'],        # (x,y,w,h) in pixels
-                        'frame_dims': (self._screen_width, self._screen_height)
-                    })
-                self._aim_at_target(detection)
-            else :
-                self.last_target_pos = None
-                # Clear overlay target if no detection
-                if self.overlay_data is not None:
-                    self.overlay_data.update({'target': None, 'bbox': None})
-    
-    def _aim_at_target(self, detection: Dict[str, Any]) -> None :
-        if self.mouse is None :
+                data_to_send = {
+                    'target': detection['screen_position'],
+                    'target_center': detection['center'],
+                    'bbox': detection['bounding_box'],
+                    'frame_dims': (self._screen_width, self._screen_height)
+                }
+            else:
+                data_to_send = {'target': None, 'target_center': None, 'bbox': None}
+            if mask is not None:
+                data_to_send['mask'] = mask
+            self.overlay_data.update(data_to_send)
+
+        # Aim movement...
+        if detection is not None and self._aiming_enabled.is_set():
+            self._aim_at_target(detection)
+
+    def _aim_at_target(self, detection: Dict[str, Any]) -> None:
+        if self.mouse is None:
             return
-        try :
+        try:
             screen_x, screen_y = detection['screen_position']
             target_x = int(screen_x * self._screen_width)
             target_y = int(screen_y * self._screen_height)
             current_x, current_y = self.mouse.position
-            if self.last_target_pos :
+            if self.last_target_pos:
                 last_x, last_y = self.last_target_pos
                 smoothed_x = last_x + (target_x - last_x) * self.smooth_factor
                 smoothed_y = last_y + (target_y - last_y) * self.smooth_factor
-            else :
+            else:
                 smoothed_x = current_x + (target_x - current_x) * self.smooth_factor
                 smoothed_y = current_y + (target_y - current_y) * self.smooth_factor
             self.mouse.position = (int(smoothed_x), int(smoothed_y))
             self.last_target_pos = (smoothed_x, smoothed_y)
-            # Share mouse position for the screen overlay
             if self.overlay_data is not None:
                 self.overlay_data.update({'mouse_pos': (int(smoothed_x), int(smoothed_y))})
-        except Exception as e :
+        except Exception as e:
             logging.error(f"Mouse movement error: {e}")
 
     # Configuration update methods...
-    def set_smooth_factor(self, factor: float) -> None :
-        with self.state_lock :
+    def set_smooth_factor(self, factor: float) -> None:
+        with self.state_lock:
             self.smooth_factor = max(0.01, min(1.0, factor))
 
-    def set_hsv_range(self, lower, upper) :
+    def set_hsv_range(self, lower, upper):
         self.detector.set_hsv_range(lower, upper)
 
-    def set_capture_region(self, region) :
+    def set_capture_region(self, region):
         self.capture_region = region
-        
-        # Note: would require restart; for simplicity, ignore dynamic
 
-    # --- Aimbot (tab) activation key ---
-    def set_activation_key(self, key: str) -> None :
-        # Update the activation key string
-        # (Future: integrate with pynput listener to dynamically change the key)
-        with self.state_lock :
+    def set_activation_key(self, key: str) -> None:
+        with self.state_lock:
             self.activation_key = key
         logging.info(f"Aimbot activation key set to: {key}")
+        if self._keyboard_listener and self._keyboard_listener.running:
+            self._stop_keyboard_listener()
+            self._start_keyboard_listener()
 
-    # ----- Core Functions ----- 
+    def set_confidence(self, confidence: float) -> None:
+        self.detector.set_confidence(confidence)
 
-    def run(self, stop_event: threading.Event, pause_event: threading.Event) -> None :
-        # Override to start capturer before loop
+    def set_roi_enabled(self, enabled: bool) -> None:
+        self.roi_enabled = enabled
+        logging.info(f"ROI detection {'enabled' if enabled else 'disabled'}")
+
+    def set_roi_radius(self, radius: int) -> None:
+        self.roi_radius = max(20, min(500, radius))
+        logging.info(f"ROI radius set to {self.roi_radius} px")
+
+    def set_outline_mode(self, enabled: bool) -> None:
+        self.detector.set_outline_mode(enabled)
+        logging.info(f"Outline detection mode {'enabled' if enabled else 'disabled'}")
+
+    # ----- Core Functions -----
+    def run(self, stop_event: threading.Event, pause_event: threading.Event) -> None:
         self.capturer.start()
-        # Obtain screen dimensions from capturer after start
         if self.capturer.camera is not None:
-            # dxcam stores width/height of the captured region or full screen
-            region_info = self.capturer.camera.output_info
-            if region_info and isinstance(region_info, dict):
-                self._screen_width = region_info.get('width', 1920)
-                self._screen_height = region_info.get('height', 1080)
-        try :
+            try:
+                out = self.capturer.camera.output
+                if out is not None:
+                    self._screen_width = out.width
+                    self._screen_height = out.height
+                else:
+                    if self.capture_region:
+                        self._screen_width = self.capture_region[2]
+                        self._screen_height = self.capture_region[3]
+                    else:
+                        from ctypes import windll
+                        user32 = windll.user32
+                        self._screen_width = user32.GetSystemMetrics(0)
+                        self._screen_height = user32.GetSystemMetrics(1)
+                    logging.warning(f"Camera output was None, using fallback dimensions: {self._screen_width}x{self._screen_height}")
+            except Exception as e:
+                logging.warning(f"Failed to get screen dimensions from camera: {e}. Using default {self._screen_width}x{self._screen_height}")
+        self._start_keyboard_listener()
+        try:
             super().run(stop_event, pause_event)
-        finally :
+        finally:
+            self._stop_keyboard_listener()
             self.capturer.stop()
-    
-    def _cleanup(self) -> None :
+
+    def _cleanup(self) -> None:
+        self._stop_keyboard_listener()
         self.capturer.stop()
         logging.debug("Aimbot cleaned up")

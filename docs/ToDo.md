@@ -1,5 +1,4 @@
 # To Do :
 
-- trigger bot 
+- trigger bot in mouse
 - aimbot
-- update color selection & confidence (should be target is between these two colors (slider) and track when confidence above 80%)

@@ -7,6 +7,7 @@ import queue
 import customtkinter as ctk
 import logging
 from typing import Optional, Dict, Any
+from pynput.mouse import Controller as MouseController
 
 from .tabs import GeneralTab, AimbotTab, MouseTab, OverlaysTab
 from .overlays import StatsOverlay, ScreenOverlay
@@ -25,7 +26,7 @@ class ModernMainWindow :
         # create main window
         self.root = ctk.CTk()
         self.root.title("PewPy Control Panel")
-        self.root.geometry("500x480")
+        self.root.geometry("500x610")
         self.root.minsize(460, 380)
 
         # thread-safe communication
@@ -41,6 +42,12 @@ class ModernMainWindow :
         self.screen_overlay: Optional[ScreenOverlay] = None
         self._stats_visible = False
         self._screen_visible = False
+
+        # Mouse outline state
+        self._mouse_outline_enabled = False
+        # Target render state (draw circle at aim target centroid)
+        self._target_render_enabled = False
+        self._mouse = MouseController() if self.overlay_data is not None else None
 
         # setup UI
         self._setup_layout()
@@ -162,6 +169,30 @@ class ModernMainWindow :
             logging.error(f"Toggle screen overlay failed: {e}")
             self._ui_queue.put_nowait({'type': 'status', 'message': f'Error: {e}'})
 
+    def toggle_mouse_outline(self) -> None:
+        """Toggle the mouse outline indicator on the screen overlay."""
+        self._mouse_outline_enabled = not self._mouse_outline_enabled
+        state = self._mouse_outline_enabled
+        self._ui_queue.put_nowait({
+            'type': 'overlay_visibility',
+            'overlay': 'mouse_outline',
+            'visible': state
+        })
+        msg = f"Mouse outline {'shown' if state else 'hidden'}"
+        self._ui_queue.put_nowait({'type': 'status', 'message': msg})
+
+    def toggle_target_render(self) -> None:
+        """Toggle drawing a circle at the aimbot target centroid on the screen overlay."""
+        self._target_render_enabled = not self._target_render_enabled
+        state = self._target_render_enabled
+        self._ui_queue.put_nowait({
+            'type': 'overlay_visibility',
+            'overlay': 'target_render',
+            'visible': state
+        })
+        msg = f"Target render {'enabled' if state else 'disabled'}"
+        self._ui_queue.put_nowait({'type': 'status', 'message': msg})
+
     def _start_overlay_updates(self) -> None:
         # Stats update every 1 second
         def update_stats():
@@ -175,9 +206,30 @@ class ModernMainWindow :
 
         # Screen overlay update at ~30 fps
         def update_screen():
-            if self._screen_visible and self.screen_overlay and self.overlay_data:
+            if self._screen_visible and self.screen_overlay:
                 try:
-                    drawing_data = self.overlay_data.get()
+                    drawing_data = {}
+                    if self.overlay_data:
+                        drawing_data = self.overlay_data.get()
+                        # Debug: log if target_center is present
+                        if drawing_data.get('target_center'):
+                            logging.debug(f"MainWindow: Retrieved target_center={drawing_data['target_center']} from overlay_data")
+                        else:
+                            logging.debug("MainWindow: overlay_data has no target_center")
+                    # If mouse outline is enabled...
+                    if self._mouse_outline_enabled:
+                        pos = self._mouse.position if self._mouse else (0, 0)
+                        drawing_data['mouse_outline'] = True
+                        drawing_data['mouse_outline_pos'] = pos
+                    # If target render is enabled...
+                    if self._target_render_enabled:
+                        target_center = drawing_data.get('target_center')
+                        if target_center:
+                            drawing_data['target_outline'] = True
+                            drawing_data['target_outline_pos'] = target_center
+                            logging.debug(f"MainWindow: Enabling target render at {target_center}")
+                        else:
+                            logging.debug("MainWindow: target_render enabled but no target_center available")
                     self.screen_overlay.update_drawings(drawing_data)
                 except Exception as e:
                     logging.error(f"Screen overlay update failed: {e}")

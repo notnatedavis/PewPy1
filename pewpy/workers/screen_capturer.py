@@ -26,7 +26,11 @@ class ScreenCapturer(BaseWorker) :
         self.frame_lock = threading.Lock()
         self.frame_ready = threading.Event()
         self._setup_camera()
-    
+
+        # Additional thread for continuous capture when using start/stop
+        self._capture_thread = None
+        self._capture_running = False
+
     def _setup_camera(self) -> None :
         if not DXCAM_AVAILABLE :
             logging.error("dxcam not available")
@@ -40,9 +44,53 @@ class ScreenCapturer(BaseWorker) :
         except Exception as e :
             logging.error(f"Camera setup failed: {e}")
             self.camera = None
-    
+
+    # ------------------ New start / stop methods ------------------
+    def start(self) -> None :
+        """Start the dxcam camera and a background thread that continuously fetches frames."""
+        if self.camera is None:
+            logging.error("Cannot start screen capturer: camera not available")
+            return
+        self.camera.start(target_fps=self.target_fps, video_mode=False)
+        self._capture_running = True
+        self._capture_thread = threading.Thread(target=self._capture_loop,
+                                                daemon=True,
+                                                name="ScreenCapturerLoop")
+        self._capture_thread.start()
+        logging.info("Screen capture started (background thread)")
+
+    def stop(self) -> None :
+        """Stop the capture thread and the dxcam camera."""
+        self._capture_running = False
+        if self._capture_thread is not None:
+            self._capture_thread.join(timeout=1.0)
+            self._capture_thread = None
+        if self.camera is not None:
+            try:
+                self.camera.stop()
+            except Exception as e:
+                logging.debug(f"Camera cleanup warning: {e}")
+        logging.info("Screen capture stopped")
+
+    def _capture_loop(self) -> None :
+        """Continuously fetch frames from the camera in a background thread."""
+        cycle_delay = 1.0 / max(self.target_fps, 1)   # respect target FPS
+        while self._capture_running:
+            try:
+                frame = self.camera.get_latest_frame()
+                if frame is not None:
+                    with self.frame_lock:
+                        self.frame_buffer = frame.copy()
+                    self.frame_ready.set()
+            except Exception as e:
+                logging.error(f"Capture loop error: {e}")
+            time.sleep(cycle_delay)
+
+    # -----------------------------------------------------------------
+
     def _work_cycle(self) -> None :
-        # Called repeatedly. Fetch latest frame from camera and signal ready.
+        # Called repeatedly when the worker is used in full BaseWorker mode.
+        # In that case the camera is already started by the run() method.
         if self.camera is None :
             time.sleep(0.1)
             return
@@ -51,44 +99,42 @@ class ScreenCapturer(BaseWorker) :
             with self.frame_lock :
                 self.frame_buffer = frame.copy()
             self.frame_ready.set()
-        # BaseWorker will sleep if cycle is too fast.
-    
+
     def run(self, stop_event: threading.Event, pause_event: threading.Event) -> None :
+        # Full worker mode (used by ThreadManager)
         if self.camera is not None :
             self.camera.start(target_fps=self.target_fps, video_mode=False)
-            logging.info("Screen capture started")
+            logging.info("Screen capture started (worker mode)")
         try :
             super().run(stop_event, pause_event)
         finally :
             self._cleanup_camera()
-    
+
     def get_latest_frame(self) -> Optional[np.ndarray] :
         """Return the most recent frame and clear the ready signal."""
         with self.frame_lock :
             if self.frame_buffer is not None :
                 frame = self.frame_buffer.copy()
-                # Clear the event so wait_for_frame will block until next frame
                 self.frame_ready.clear()
                 return frame
         return None
-    
+
     def wait_for_frame(self, timeout: float = 1.0) -> bool :
         """Block until a new frame has been captured."""
         return self.frame_ready.wait(timeout=timeout)
-    
+
     def _cleanup_camera(self) -> None :
         if self.camera is not None :
             try :
                 self.camera.stop()
             except Exception as e :
                 logging.debug(f"Camera cleanup warning: {e}")
-    
+
     def _cleanup(self) -> None :
         self._cleanup_camera()
-    
+
     def update_fps(self, new_fps: int) -> None :
         if new_fps != self.target_fps :
             self.target_fps = new_fps
             logging.info(f"Screen capturer FPS updated to {new_fps}")
-            # dxcam does not support dynamic FPS change without restart.
-            # In a real implementation you would restart the camera.
+            # A running capture will respect the new target_fps only on the next start.
