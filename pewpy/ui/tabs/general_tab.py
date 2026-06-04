@@ -67,7 +67,6 @@ class DebugWindow(ctk.CTkToplevel):
         self._max_log_lines = 500
 
     def update_stats(self, data: dict) -> None:
-        """Update the system statistics pane."""
         if self._closed:
             return
         lines = []
@@ -94,17 +93,14 @@ class DebugWindow(ctk.CTkToplevel):
             self.after(0, self._update_text, self.stats_text, text)
 
     def add_log(self, log_msg: str) -> None:
-        """Append a log message to the logs pane."""
         if self._closed:
             return
-        # Add timestamp
         from datetime import datetime
         timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         formatted = f"[{timestamp}] {log_msg}"
         self._log_buffer.append(formatted)
         if len(self._log_buffer) > self._max_log_lines:
             self._log_buffer.pop(0)
-        # Update widget
         if not self._closed:
             self.after(0, self._update_logs)
 
@@ -124,7 +120,6 @@ class DebugWindow(ctk.CTkToplevel):
         self.logs_text.delete("1.0", "end")
         self.logs_text.insert("1.0", full_log)
         self.logs_text.configure(state="disabled")
-        # Auto-scroll to bottom
         self.logs_text.see("end")
 
     def on_close(self) -> None:
@@ -137,8 +132,8 @@ class GeneralTab(BaseTab):
         super().__init__(parent_tab, app, ui_queue)
         self._diagnostics_running = False
         self._diagnostics_thread = None
-        self.debug_window = None  # reference to DebugWindow instance
-        self._log_handler = None   # custom logging handler
+        self.debug_window = None
+        self._log_handler = None
 
     def _create_widgets(self) -> None:
         # Title
@@ -206,7 +201,6 @@ class GeneralTab(BaseTab):
         if self.debug_window is None or not self.debug_window.winfo_exists():
             self.debug_window = DebugWindow(self.frame.winfo_toplevel(), self.ui_queue)
             self.debug_btn.configure(text="Close Debug Window")
-            # Install custom log handler
             self._install_log_handler()
             self._start_diagnostics()
             logging.info("Debug window opened")
@@ -223,7 +217,7 @@ class GeneralTab(BaseTab):
             self._log_handler = DebugWindowHandler(self.ui_queue)
             self._log_handler.setFormatter(logging.Formatter('%(levelname)s - %(name)s - %(message)s'))
             logging.getLogger().addHandler(self._log_handler)
-            logging.getLogger().setLevel(logging.DEBUG)  # ensure DEBUG messages are captured
+            logging.getLogger().setLevel(logging.DEBUG)
             logging.debug("Custom debug logging handler installed")
 
     def _remove_log_handler(self) -> None:
@@ -252,10 +246,8 @@ class GeneralTab(BaseTab):
         while self._diagnostics_running : 
             data = {}
             try :
-                # Worker stats
                 data['workers'] = self.app.thread_manager.get_worker_stats()
 
-                # System stats
                 try :
                     import psutil
                     data['cpu'] = psutil.cpu_percent(interval=0.1)
@@ -264,7 +256,6 @@ class GeneralTab(BaseTab):
                     data['cpu'] = 'N/A'
                     data['mem'] = 'N/A'
 
-                # Resource manager status
                 data['rm_running'] = self.app.resource_manager.running
 
             except Exception as e:
@@ -274,11 +265,9 @@ class GeneralTab(BaseTab):
             time.sleep(2)
 
     def update_debug_info(self, data: dict) -> None :
-        """Forward system stats to the debug window (if open)."""
         if self.debug_window and not self.debug_window._closed:
             self.debug_window.update_stats(data)
 
     def handle_debug_log(self, log_msg: str) -> None:
-        """Forward a log message to the debug window."""
         if self.debug_window and not self.debug_window._closed:
             self.debug_window.add_log(log_msg)

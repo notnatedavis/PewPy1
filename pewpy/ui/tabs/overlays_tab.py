@@ -1,6 +1,6 @@
 # pewpy/ui/tabs/overlays_tab.py
 #   Overlays tab: stats overlay toggle, screen overlay toggle,
-#   mouse outline toggle, target render toggle, and placeholders
+#   mouse outline toggle, target render toggle, and placeholder.
 
 # ----- Imports ----- 
 import customtkinter as ctk
@@ -41,7 +41,7 @@ class OverlaysTab(BaseTab):
         )
         self.screen_overlay_btn.pack(pady=6, anchor="center")
 
-        # Mouse Outline button (only meaningful when Screen Overlay is active)
+        # Mouse Outline button
         self.mouse_outline_btn = ctk.CTkButton(
             self.frame,
             text="Mouse Outline: (off)",
@@ -54,7 +54,7 @@ class OverlaysTab(BaseTab):
         )
         self.mouse_outline_btn.pack(pady=6, anchor="center")
 
-        # Target Render button (draws circle at aim target centroid)
+        # Target Render toggle button
         self.target_render_btn = ctk.CTkButton(
             self.frame,
             text="Target Render: (off)",

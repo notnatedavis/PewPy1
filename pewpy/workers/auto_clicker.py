@@ -5,7 +5,7 @@
 import threading
 import time
 import logging
-from .function_worker import BaseWorker
+from .base import BaseWorker
 try:
     from pynput.mouse import Button, Controller as MouseController
     PYNPUT_AVAILABLE = True
@@ -46,7 +46,6 @@ class AutoClicker(BaseWorker) :
             except Exception as e :
                 logging.error(f"Mouse click failed: {e}")
                 time.sleep(min(interval * 2, 1.0))
-        # Adaptive sleep is handled by BaseWorker's loop (short sleep)
     
     def set_interval(self, interval: float) -> None :
         interval_float = max(0.01, min(10.0, float(interval)))

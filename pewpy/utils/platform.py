@@ -1,4 +1,5 @@
-#   src/utils/system_utils.py
+#   pewpy/utils/platform.py
+#   System compatibility checks and process priority optimisation
 
 # ----- Imports ----- #
 import platform
@@ -11,7 +12,7 @@ try :
 except ImportError :
     PSUTIL_AVAILABLE = False
 
-# ----- Main Classes ----- #
+# ----- Main Functions ----- #
 def get_platform_info() -> Dict[str, Any] :
     info = {
         "system": platform.system(),

@@ -1,4 +1,4 @@
-#   src/workers/screen_capturer.py
+#   src/capture/dxcam_capturer.py
 #   Screen capturer using dxcam (passive)
 
 # ----- Imports ----- #
@@ -13,7 +13,7 @@ try:
 except ImportError:
     DXCAM_AVAILABLE = False
     logging.warning("dxcam not available - screen capture disabled")
-from .function_worker import BaseWorker
+from pewpy.workers.base import BaseWorker
 
 # ----- Main Class ----- #
 class ScreenCapturer(BaseWorker) :

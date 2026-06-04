@@ -1,5 +1,4 @@
-#   src/core/frame_pipeline.py
-#   src/core/frame_pipeline.py
+#   src/pipeline/frame_pipeline.py
 #   Frame processing pipeline with optional parallel executor
 
 # ----- Imports ----- #
@@ -95,7 +94,6 @@ class FramePipeline:
                 # main processing (maybe parallel)
                 results = {}
                 if self.processor_executor and self.processors :
-                    # Submit all processors to executor and collect futures
                     futures = []
                     for proc in self.processors :
                         future = self.processor_executor.submit(proc, processed_frame)

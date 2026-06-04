@@ -1,5 +1,5 @@
-#   pewpy/core/app_manager.py
-#   Main application coordination - uses config and resource manager
+#   pewpy/core/application.py
+#   Main application coordination - uses config, resource manager, and worker factory
 
 # ----- Imports ----- #
 import logging
@@ -8,7 +8,8 @@ from typing import Dict, Any, Optional
 from .thread_manager import ThreadManager
 from .config import Config
 from .resource_manager import ResourceManager
-from ..utils.system_utils import get_cpu_count
+from ..utils.platform import get_cpu_count
+from ..workers import create_workers
 
 # ----- Main Class ----- #
 class PewPyApplication :
@@ -21,64 +22,16 @@ class PewPyApplication :
         self.resource_manager = ResourceManager(self.config.config)
         self._lock = threading.RLock()
         
-        self._initialize_workers()
+        # Use the factory to build all workers and the communication bridge
+        self.workers, self.overlay_data = create_workers(self.config)
+        
         if self.config.get('resource_manager.enabled', True) :
             self.resource_manager.start()
-            # Register callbacks for workers that can adapt
             self._register_resource_callbacks()
         logging.info("PewPyApplication initialized")
-    
-    def _initialize_workers(self) -> None :
-        with self._lock :
-            try :
-                from pewpy.workers.auto_clicker import AutoClicker
-                # Remove old overlay imports; we keep OverlayData for communication
-                from pewpy.workers.overlay_communication import OverlayData
-
-                # Create a shared data bridge for inter-worker communication
-                overlay_data = OverlayData()
-                # Expose it for the UI
-                self.overlay_data = overlay_data
-
-                # AutoClicker with config (unchanged)
-                interval = self.config.get('workers.auto_clicker.default_interval', 0.1)
-                button = self.config.get('workers.auto_clicker.button', 'left')
-                self.workers['auto_clicker'] = AutoClicker(click_interval=interval, button=button)
-
-                # Aimbot
-                try:
-                    from pewpy.workers.aimbot import AimbotWorker
-                    aimbot_cfg = self.config.get('workers.aimbot', {})
-                    self.workers['aimbot'] = AimbotWorker(
-                        capture_region=aimbot_cfg.get('capture_region'),
-                        target_fps=aimbot_cfg.get('target_fps', 60),
-                        hsv_range=(
-                            tuple(aimbot_cfg.get('hsv_lower', [0,120,70])),
-                            tuple(aimbot_cfg.get('hsv_upper', [10,255,255]))
-                        ),
-                        smooth_factor=aimbot_cfg.get('smooth_factor', 0.2),
-                        activation_key=aimbot_cfg.get('activation_key', 'alt_l'),
-                        overlay_data=overlay_data
-                    )
-                    logging.info("Aimbot worker loaded")
-                except ImportError:
-                    logging.info("Aimbot worker not available (import failed)")
-                except Exception as e:
-                    logging.warning(f"Aimbot worker init failed: {e}")
-
-                # Overlay workers are now managed by the UI – do NOT create them here
-
-                logging.debug("Workers initialized from config")
-            except ImportError as e :
-                logging.error(f"Failed to import worker: {e}")
-                raise
-            except Exception as e :
-                logging.error(f"Worker initialization failed: {e}")
-                raise
 
     def _register_resource_callbacks(self) -> None :
         def on_resource_update(changes) :
-            # Only update if the aimbot worker is actually running and has the capturer
             if 'aimbot' in self.worker_instances:
                 aimbot = self.worker_instances['aimbot']
                 if hasattr(aimbot, 'capturer') and hasattr(aimbot.capturer, 'update_fps'):

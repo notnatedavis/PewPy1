@@ -5,9 +5,9 @@ __version__ = "1.0.0"
 __author__ = "@notnatedavis"
 
 # ----- Imports ----- #
-from .core.app_manager import PewPyApplication
+from .core.application import PewPyApplication
 from .core.thread_manager import ThreadManager
-from .core.frame_pipeline import FramePipeline
+from .pipeline.frame_pipeline import FramePipeline
 from .core.config import Config
 from .core.executors import ExecutorBackend, ThreadExecutor, ProcessExecutor
 from .core.resource_manager import ResourceManager

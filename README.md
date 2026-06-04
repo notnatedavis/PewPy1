@@ -49,38 +49,58 @@ All workers can be toggled on/off independently through a modern `customtkinter`
 │   └── ToDo.md
 ├── logs/                          # runtime logs (not tracked)
 ├── pewpy/
+│   ├── capture/
+│   │   ├── __init__.py
+│   │   └── dxcam_capturer.py
+│   ├── common/
+│   │   ├── __init__.py
+│   │   ├── constants.py
+│   │   └── types.py
+│   ├── communication/
+│   │   ├── __init__.py
+│   │   └── overlay_bridge.py
 │   ├── core/
 │   │   ├── __init__.py
-│   │   ├── app_manager.py         # worker coordination + lifecycle
-│   │   ├── config.py              # YAML loader with dot‑notation access
-│   │   ├── executors.py           # abstract thread/process executor backends
-│   │   ├── frame_pipeline.py      # frame processing chain (optional parallelism)
-│   │   ├── resource_manager.py    # adaptive CPU/FPS controller
-│   │   └── thread_manager.py      # thread lifecycle with stop/pause events
+│   │   ├── application.py
+│   │   ├── config.py
+│   │   ├── executors.py
+│   │   ├── resource_manager.py
+│   │   └── thread_manager.py
+│   ├── detection/
+│   │   ├── __init__.py
+│   │   └── target_detector.py
+│   ├── pipeline/
+│   │   ├── __init__.py
+│   │   └── frame_pipeline.py
 │   ├── ui/
+│   │   ├── overlays/
+│   │   │   ├── __init__.py
+│   │   │   ├── base_overlay.py
+│   │   │   ├── mask_overlay.py
+│   │   │   ├── screen_overlay.py
+│   │   │   ├── stats_overlay.py
+│   │   │   └── win32_helpers.py
 │   │   ├── tabs/
 │   │   │   ├── __init__.py
-│   │   │   ├── aimbot_tab.py       # Aimbot controls (toggle, HSV, smooth, activation key)
-│   │   │   ├── general_tab.py      # Title, placeholders, global status bar
-│   │   │   ├── mouse_tab.py        # Auto‑clicker toggle, interval, placeholders
-│   │   │   └── overlays_tab.py     # Stats & screen overlay toggles
-│   │   ├── utils.py                # shared UI helpers (centered frame)
+│   │   │   ├── aimbot_tab.py
+│   │   │   ├── base_tab.py
+│   │   │   ├── general_tab.py
+│   │   │   ├── mouse_tab.py
+│   │   │   └── overlays_tab.py
 │   │   ├── __init__.py
-│   │   └── main_window.py          # tab container, UI update loop, shutdown
+│   │   ├── main_window.py
+│   │   └── utils.py
 │   ├── utils/
 │   │   ├── __init__.py
-│   │   └── system_utils.py         # platform checks, priority optimisation
+│   │   ├── logging_setup.py
+│   │   └── platform.py
 │   ├── workers/
 │   │   ├── __init__.py
-│   │   ├── aimbot.py               # capture + detect + mouse movement
-│   │   ├── auto_clicker.py         # pynput‑based auto‑clicker
-│   │   ├── function_worker.py      # abstract worker base class
-│   │   ├── overlay.py              # tkinter overlay window
-│   │   ├── screen_capturer.py      # dxcam screen capture wrapper
-│   │   ├── screen_overlay.py       # full‑screen coloured overlay
-│   │   └── target_detector.py      # OpenCV HSV detection (GPU/CPU)
+│   │   ├── aimbot.py
+│   │   ├── auto_clicker.py
+│   │   └── base.py
 │   ├── __init__.py
-│   └── main.py                     # entry point (run with -m pewpy.main)
+│   └── main.py
 ├── .gitignore
 ├── README.md                       # (you are here, hi!)
 ├── requirements.txt

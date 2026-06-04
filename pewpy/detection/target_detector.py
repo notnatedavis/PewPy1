@@ -1,4 +1,4 @@
-#   pewpy/workers/target_detector.py
+#   pewpy/detection/target_detector.py
 #   OpenCV target detection with GPU acceleration, confidence filtering,
 #   outline mode, and mask access for debug preview.
 
@@ -149,8 +149,7 @@ class TargetDetector:
 
         if self.outline_mode:
             # ---- Outline mode: simple area filter with very low threshold ----
-            # Use a minimum area of 1 pixel to catch even a 1‑px outline.
-            min_area_eff = max(1, self.min_area_outline)   # never below 1
+            min_area_eff = max(1, self.min_area_outline)
             best_area = -1
             best_bbox = None
             for cnt in contours:
@@ -165,8 +164,7 @@ class TargetDetector:
                     best_bbox = (x, y, w, h)
 
             if best_bbox is None:
-                logging.debug("TargetDetector (outline): No contour passed area filter "
-                              f"(min area = {min_area_eff})")
+                logging.debug(f"TargetDetector (outline): No contour passed area filter (min={min_area_eff})")
                 return None
 
             x, y, w, h = best_bbox
@@ -177,10 +175,10 @@ class TargetDetector:
             result = {
                 'center': (cx, cy),
                 'bounding_box': (x, y, w, h),
-                'confidence': 1.0,          # not meaningful in outline mode
+                'confidence': 1.0,
                 'screen_position': (screen_x, screen_y)
             }
-            logging.debug(f"TargetDetector (outline): selected bbox={best_bbox}, center=({cx},{cy})")
+            logging.debug(f"TargetDetector (outline): bbox={best_bbox}, center=({cx},{cy})")
             return result
 
         else:
@@ -191,10 +189,8 @@ class TargetDetector:
             for cnt in contours:
                 area = cv2.contourArea(cnt)
                 if area < self.min_area:
-                    logging.debug(f"Contour rejected: area={area:.0f} < min_area={self.min_area}")
                     continue
                 if area > self.max_area:
-                    logging.debug(f"Contour rejected: area={area:.0f} > max_area={self.max_area}")
                     continue
                 x, y, w, h = cv2.boundingRect(cnt)
                 bbox_area = w * h
@@ -202,17 +198,14 @@ class TargetDetector:
                     continue
                 confidence = area / bbox_area
                 if confidence < self.min_confidence:
-                    logging.debug(f"Contour rejected: confidence={confidence:.2f} < min_confidence={self.min_confidence}")
                     continue
                 if confidence > best_confidence:
                     best_confidence = confidence
-                    # Centroid via image moments (sub‑pixel accuracy)
                     M = cv2.moments(cnt)
                     if M["m00"] != 0:
                         cx = int(M["m10"] / M["m00"])
                         cy = int(M["m01"] / M["m00"])
                     else:
-                        # fallback to geometric centre of bounding box
                         cx, cy = x + w // 2, y + h // 2
 
                     screen_x = cx / frame_w
@@ -255,13 +248,8 @@ class TargetDetector:
         logging.info(f"Confidence threshold set to {self.min_confidence:.2f}")
 
     def set_outline_mode(self, enabled: bool) -> None:
-        """Enable/disable outline detection mode.
-        When enabled, the detector automatically uses full saturation and value
-        ranges (0‑255) and a minimal area threshold so that thin borders are
-        captured.  Only the **hue** bounds matter in this mode."""
         self.outline_mode = enabled
         if enabled:
-            # Force a very low minimum area so even a 1‑px outline is detected.
             self.min_area_outline = 1
         logging.info(f"Outline detection mode {'enabled' if enabled else 'disabled'} "
                      f"(min_area_outline={self.min_area_outline})")

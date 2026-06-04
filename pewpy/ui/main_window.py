@@ -45,7 +45,7 @@ class ModernMainWindow :
 
         # Mouse outline state
         self._mouse_outline_enabled = False
-        # Target render state (draw circle at aim target centroid)
+        # Target render state (draw small red outline circle at aimbot target centroid)
         self._target_render_enabled = False
         self._mouse = MouseController() if self.overlay_data is not None else None
 
@@ -129,6 +129,12 @@ class ModernMainWindow :
                 # Notify the OverlaysTab to update button appearance
                 if 'overlays' in self.tabs and hasattr(self.tabs['overlays'], 'set_overlay_button_state'):
                     self.tabs['overlays'].set_overlay_button_state(overlay, visible)
+            elif update_type == 'hsv_update':
+                # Forward HSV values to the Mouse tab for display
+                if 'mouse' in self.tabs and hasattr(self.tabs['mouse'], 'update_hsv_display'):
+                    hsv = update.get('hsv')
+                    if hsv:
+                        self.tabs['mouse'].update_hsv_display(*hsv)
         except Exception as e :
             logging.error(f"Failed to apply UI update: {e}")
 
@@ -182,7 +188,7 @@ class ModernMainWindow :
         self._ui_queue.put_nowait({'type': 'status', 'message': msg})
 
     def toggle_target_render(self) -> None:
-        """Toggle drawing a circle at the aimbot target centroid on the screen overlay."""
+        """Toggle drawing a small red outline circle at the aimbot target centroid."""
         self._target_render_enabled = not self._target_render_enabled
         state = self._target_render_enabled
         self._ui_queue.put_nowait({
@@ -211,25 +217,44 @@ class ModernMainWindow :
                     drawing_data = {}
                     if self.overlay_data:
                         drawing_data = self.overlay_data.get()
-                        # Debug: log if target_center is present
-                        if drawing_data.get('target_center'):
-                            logging.debug(f"MainWindow: Retrieved target_center={drawing_data['target_center']} from overlay_data")
-                        else:
-                            logging.debug("MainWindow: overlay_data has no target_center")
-                    # If mouse outline is enabled...
+
+                    # Mouse outline
                     if self._mouse_outline_enabled:
                         pos = self._mouse.position if self._mouse else (0, 0)
                         drawing_data['mouse_outline'] = True
                         drawing_data['mouse_outline_pos'] = pos
-                    # If target render is enabled...
-                    if self._target_render_enabled:
+
+                    # Target render
+                    if self._target_render_enabled :
                         target_center = drawing_data.get('target_center')
+                        mouse_pos = self._mouse.position if self._mouse else None
+                        logging.debug(
+                            f"Target render: enabled=True, "
+                            f"target_center={target_center}, "
+                            f"mouse_pos={mouse_pos}, "
+                            f"overlay_data keys={list(drawing_data.keys())}"
+                        )
+                        if not target_center and self._mouse :
+                            target_center = self._mouse.position
+                            logging.debug("Target render: no target_center from aimbot, using mouse position as fallback.")
                         if target_center:
                             drawing_data['target_outline'] = True
                             drawing_data['target_outline_pos'] = target_center
-                            logging.debug(f"MainWindow: Enabling target render at {target_center}")
+                            logging.debug(f"Target render: drawing circle at {target_center}")
                         else:
-                            logging.debug("MainWindow: target_render enabled but no target_center available")
+                            logging.debug("Target render enabled but no position available (no target_center and no mouse)")
+
+                    # ROI circle – draw when ROI is enabled (aimbot does not need to be running)
+                    aimbot = self.app.workers.get('aimbot')
+                    if aimbot and getattr(aimbot, 'roi_enabled', False):
+                        pos = self._mouse.position if self._mouse else (0, 0)
+                        radius = getattr(aimbot, 'roi_radius', 150)
+                        drawing_data['roi_circle'] = True
+                        drawing_data['roi_circle_pos'] = pos
+                        drawing_data['roi_circle_radius'] = radius
+                    else:
+                        drawing_data['roi_circle'] = False
+
                     self.screen_overlay.update_drawings(drawing_data)
                 except Exception as e:
                     logging.error(f"Screen overlay update failed: {e}")

@@ -7,17 +7,9 @@ import logging
 import time
 from typing import Dict, Optional, Any, Callable
 from dataclasses import dataclass
-from enum import Enum
+from pewpy.common.constants import WorkerState
 
 # ----- Main Class ----- #
-class WorkerState(Enum) :
-    STOPPED = "stopped"
-    STARTING = "starting"
-    RUNNING = "running"
-    PAUSED = "paused"
-    STOPPING = "stopping"
-    ERROR = "error"
-
 @dataclass
 class WorkerInfo :
     thread: threading.Thread

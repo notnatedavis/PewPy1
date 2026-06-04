@@ -5,20 +5,10 @@
 import sys
 import signal
 import logging
-# import traceback #not necessary ?
 from pathlib import Path
+from pewpy.utils.logging_setup import setup_logging
 
-# ----- Main Classes ----- #
-def setup_logging() -> None :
-    logs_dir = Path("logs")
-    logs_dir.mkdir(exist_ok=True)
-    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    logging.basicConfig(
-        level=logging.INFO,
-        format=log_format,
-        handlers=[logging.StreamHandler(sys.stdout)]
-    )
-
+# ----- Helpers ----- #
 def signal_handler(signum, frame) :
     logging.info("Received shutdown signal")
     sys.exit(0)
@@ -37,6 +27,7 @@ def check_dependencies() -> bool :
         return False
     return True
 
+# ----- Entry Point ----- #
 def main() -> int :
     try :
         setup_logging()
@@ -50,7 +41,7 @@ def main() -> int :
         signal.signal(signal.SIGTERM, signal_handler)
         
         # Import after path setup (package installed or run from root)
-        from pewpy.core.app_manager import PewPyApplication
+        from pewpy.core.application import PewPyApplication
         from pewpy.core.config import Config
         from pewpy.ui.main_window import ModernMainWindow as MainWindow
         

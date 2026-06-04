@@ -1,6 +1,5 @@
 #   pewpy/workers/aimbot.py
 #   Aimbot worker (passive) coordinating capture, detection, mouse.
-#   Now publishes the detection mask for live preview.
 
 # ----- Imports ----- #
 import threading
@@ -16,17 +15,16 @@ try:
 except ImportError:
     PYNPUT_AVAILABLE = False
     logging.warning("pynput not available - aimbot mouse/keyboard control disabled")
-from .function_worker import BaseWorker
-from .screen_capturer import ScreenCapturer
-from .target_detector import TargetDetector
-from .overlay_communication import OverlayData
+from .base import BaseWorker
+from ..capture.dxcam_capturer import ScreenCapturer
+from ..detection.target_detector import TargetDetector
+from ..communication.overlay_bridge import OverlayData
 
 # ----- Main Class ----- #
 class AimbotWorker(BaseWorker):
     """Aimbot: captures screen, detects targets, moves mouse.
     Activation key toggles the aiming on/off while the worker is running.
-    ROI mode restricts detection to a circular area around the mouse cursor.
-    Outline mode (thin target detection) can be toggled via the UI."""
+    ROI mode restricts detection to a circular area around the mouse cursor."""
 
     def __init__(self, 
                  capture_region: Optional[Tuple[int, int, int, int]] = None,
@@ -42,15 +40,13 @@ class AimbotWorker(BaseWorker):
         self.activation_key = activation_key
         self.overlay_data = overlay_data
 
-        # ROI (region of interest) settings
         self.roi_enabled = False
-        self.roi_radius = 150  # pixels, default radius around mouse
+        self.roi_radius = 150
 
         self.capturer = ScreenCapturer(region=capture_region, target_fps=target_fps)
         self.detector = TargetDetector(lower_hsv=hsv_range[0], upper_hsv=hsv_range[1])
         self.mouse = MouseController() if PYNPUT_AVAILABLE else None
 
-        # Aiming toggle – controlled by the activation key (starts disabled)
         self._aiming_enabled = threading.Event()
 
         self.last_target_pos: Optional[Tuple[float, float]] = None
@@ -58,18 +54,14 @@ class AimbotWorker(BaseWorker):
         self.frame_count = 0
         self.detection_count = 0
 
-        # Keyboard listener references
         self._keyboard_listener: Optional[KeyboardListener] = None
         self._keyboard_lock = threading.Lock()
 
-        # Cache screen dimensions (populated when capturer starts)
         self._screen_width = 1920
         self._screen_height = 1080
         logging.info(f"Aimbot initialized - Region: {capture_region}, FPS: {target_fps}")
 
-    # ----- Activation key toggle logic -----
     def _on_key_press(self, key) -> None:
-        """Toggle aiming when the configured activation key is pressed."""
         try:
             target = self.activation_key
             if isinstance(key, Key):
@@ -106,9 +98,7 @@ class AimbotWorker(BaseWorker):
                 self._keyboard_listener = None
                 logging.info("Keyboard listener stopped")
 
-    # ----- Work cycle -----
     def _work_cycle(self) -> None:
-        """Called repeatedly by the worker thread. Only processes frames when aiming is enabled."""
         if not PYNPUT_AVAILABLE:
             return
         if self.capturer.wait_for_frame(timeout=0.001):
@@ -158,10 +148,8 @@ class AimbotWorker(BaseWorker):
             else:
                 logging.debug("Aimbot: No target detected in current frame")
 
-        # Get mask for preview (even if no detection)
         mask = self.detector.get_latest_mask()
 
-        # Always publish to overlay
         if self.overlay_data is not None:
             data_to_send = {}
             if detection is not None:
@@ -178,7 +166,6 @@ class AimbotWorker(BaseWorker):
                 data_to_send['mask'] = mask
             self.overlay_data.update(data_to_send)
 
-        # Aim movement...
         if detection is not None and self._aiming_enabled.is_set():
             self._aim_at_target(detection)
 
@@ -204,7 +191,6 @@ class AimbotWorker(BaseWorker):
         except Exception as e:
             logging.error(f"Mouse movement error: {e}")
 
-    # Configuration update methods...
     def set_smooth_factor(self, factor: float) -> None:
         with self.state_lock:
             self.smooth_factor = max(0.01, min(1.0, factor))
@@ -238,7 +224,6 @@ class AimbotWorker(BaseWorker):
         self.detector.set_outline_mode(enabled)
         logging.info(f"Outline detection mode {'enabled' if enabled else 'disabled'}")
 
-    # ----- Core Functions -----
     def run(self, stop_event: threading.Event, pause_event: threading.Event) -> None:
         self.capturer.start()
         if self.capturer.camera is not None:

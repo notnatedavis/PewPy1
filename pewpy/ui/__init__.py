@@ -1,4 +1,4 @@
-#   src/ui/__init__.py
+#   pewpy/ui/__init__.py
 #   User interface components for configuration and overlay
 
 # ----- Imports ----- #

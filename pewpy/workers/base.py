@@ -1,4 +1,4 @@
-#   src/workers/function_worker.py
+#   src/workers/base.py
 #   Base class for all workers (passive, managed by ThreadManager)
 
 # ----- Imports ----- #
@@ -7,26 +7,9 @@ import time
 import logging
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
-from dataclasses import dataclass
-from enum import Enum
+from pewpy.common.constants import WorkerState as WorkerStatus, WorkerMetrics
 
 # ----- Main Class ----- #
-class WorkerStatus(Enum) :
-    STOPPED = "stopped"
-    STARTING = "starting"
-    RUNNING = "running"
-    PAUSED = "paused"
-    STOPPING = "stopping"
-    ERROR = "error"
-
-@dataclass
-class WorkerMetrics :
-    start_time: float = 0.0
-    total_cycles: int = 0
-    error_count: int = 0
-    avg_cycle_time: float = 0.0
-    last_cycle_time: float = 0.0
-
 class BaseWorker(ABC):
     # Abstract base class for workers. Subclasses must implement _work_cycle()
     
