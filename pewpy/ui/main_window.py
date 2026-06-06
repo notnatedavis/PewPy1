@@ -1,5 +1,6 @@
 #   pewpy/ui/main_window.py
 #   Modern CustomTkinter UI for PewPy – delegates tabs to separate modules
+#   Now feeds target contour to the screen overlay for outline rendering.
 
 # ----- Imports ----- #
 import threading
@@ -45,7 +46,7 @@ class ModernMainWindow :
 
         # Mouse outline state
         self._mouse_outline_enabled = False
-        # Target render state (draw small red outline circle at aimbot target centroid)
+        # Target render state (draws enemy outline contour if available)
         self._target_render_enabled = False
         self._mouse = MouseController() if self.overlay_data is not None else None
 
@@ -188,9 +189,10 @@ class ModernMainWindow :
         self._ui_queue.put_nowait({'type': 'status', 'message': msg})
 
     def toggle_target_render(self) -> None:
-        """Toggle drawing a small red outline circle at the aimbot target centroid."""
+        """Toggle drawing the enemy outline contour on the screen overlay."""
         self._target_render_enabled = not self._target_render_enabled
         state = self._target_render_enabled
+        logging.debug(f"Target render toggled: {state}")
         self._ui_queue.put_nowait({
             'type': 'overlay_visibility',
             'overlay': 'target_render',
@@ -224,25 +226,27 @@ class ModernMainWindow :
                         drawing_data['mouse_outline'] = True
                         drawing_data['mouse_outline_pos'] = pos
 
-                    # Target render
-                    if self._target_render_enabled :
+                    # Target render – contour outline if available
+                    if self._target_render_enabled:
                         target_center = drawing_data.get('target_center')
-                        mouse_pos = self._mouse.position if self._mouse else None
+                        contour = drawing_data.get('target_contour')
                         logging.debug(
-                            f"Target render: enabled=True, "
-                            f"target_center={target_center}, "
-                            f"mouse_pos={mouse_pos}, "
-                            f"overlay_data keys={list(drawing_data.keys())}"
+                            f"Target render update: target_center={target_center}, "
+                            f"contour points={len(contour) if contour else 0}"
                         )
-                        if not target_center and self._mouse :
-                            target_center = self._mouse.position
-                            logging.debug("Target render: no target_center from aimbot, using mouse position as fallback.")
-                        if target_center:
+                        if contour:
+                            # Send contour for outline drawing
+                            drawing_data['target_outline'] = True
+                            drawing_data['target_contour'] = contour
+                            logging.debug("Target render: contour found, setting target_outline=True")
+                        else:
+                            # Fallback to centroid circle if no contour
                             drawing_data['target_outline'] = True
                             drawing_data['target_outline_pos'] = target_center
-                            logging.debug(f"Target render: drawing circle at {target_center}")
-                        else:
-                            logging.debug("Target render enabled but no position available (no target_center and no mouse)")
+                            logging.debug("Target render: no contour, falling back to centroid circle")
+                    else:
+                        # If target render disabled, explicitly clear contour
+                        drawing_data['target_outline'] = False
 
                     # ROI circle – draw when ROI is enabled (aimbot does not need to be running)
                     aimbot = self.app.workers.get('aimbot')

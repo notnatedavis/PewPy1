@@ -2,7 +2,7 @@
 # TypedDicts and shared type aliases for improved type safety
 
 # ----- Imports ----- #
-from typing import TypedDict, Optional, Tuple, Dict, Any
+from typing import TypedDict, Optional, Tuple, Dict, Any, List
 import numpy as np
 
 # ----- TypedDicts ----- #
@@ -11,6 +11,7 @@ class DetectionResult(TypedDict, total=False):
     bounding_box: Tuple[int, int, int, int]
     confidence: float
     screen_position: Tuple[float, float]
+    contour: Optional[List[Tuple[int, int]]]      # list of (x,y) points for outline rendering
 
 class OverlayUpdateData(TypedDict, total=False):
     target: Optional[Tuple[float, float]]
@@ -26,6 +27,7 @@ class OverlayUpdateData(TypedDict, total=False):
     target_outline_pos: Optional[Tuple[int, int]]
     target_outline_radius: int
     target_outline_color: str
+    target_contour: Optional[List[Tuple[int, int]]]   # actual outline points for the enemy
 
 class ResourceUpdateChanges(TypedDict, total=False):
     target_fps: int

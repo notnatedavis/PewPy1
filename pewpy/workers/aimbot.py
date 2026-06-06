@@ -1,5 +1,6 @@
 #   pewpy/workers/aimbot.py
 #   Aimbot worker (passive) coordinating capture, detection, mouse.
+#   Now passes target contour to overlay for real‑time outline rendering.
 
 # ----- Imports ----- #
 import threading
@@ -24,7 +25,8 @@ from ..communication.overlay_bridge import OverlayData
 class AimbotWorker(BaseWorker):
     """Aimbot: captures screen, detects targets, moves mouse.
     Activation key toggles the aiming on/off while the worker is running.
-    ROI mode restricts detection to a circular area around the mouse cursor."""
+    ROI mode restricts detection to a circular area around the mouse cursor.
+    Target contour data is sent to the overlay bridge for real‑time outline rendering."""
 
     def __init__(self, 
                  capture_region: Optional[Tuple[int, int, int, int]] = None,
@@ -107,6 +109,7 @@ class AimbotWorker(BaseWorker):
     def _process_frame(self) -> None:
         frame = self.capturer.get_latest_frame()
         if frame is None:
+            logging.debug("Aimbot: no frame available")
             return
         self.frame_count += 1
 
@@ -134,16 +137,22 @@ class AimbotWorker(BaseWorker):
         if detection_frame is not None:
             detection = self.detector.detect_targets(detection_frame)
             if detection is not None:
-                logging.debug(f"Aimbot: Detection found! Confidence={detection.get('confidence',0):.2f}, center={detection['center']}")
+                logging.debug(f"Aimbot: Detection found! Confidence={detection.get('confidence',0):.2f}, center={detection['center']}, contour pts={len(detection.get('contour', []))}")
                 if roi_offset != (0,0):
                     center_abs = (detection['center'][0] + roi_offset[0], detection['center'][1] + roi_offset[1])
                     detection['center'] = center_abs
+                    # Adjust bounding box
                     detection['bounding_box'] = (detection['bounding_box'][0] + roi_offset[0],
                                                  detection['bounding_box'][1] + roi_offset[1],
                                                  detection['bounding_box'][2],
                                                  detection['bounding_box'][3])
                     detection['screen_position'] = (center_abs[0] / self._screen_width,
                                                     center_abs[1] / self._screen_height)
+                    # Adjust contour points
+                    if 'contour' in detection and detection['contour']:
+                        adjusted_contour = [(px + roi_offset[0], py + roi_offset[1]) for px, py in detection['contour']]
+                        detection['contour'] = adjusted_contour
+                        logging.debug(f"Aimbot: Adjusted contour to absolute coordinates, first point: {adjusted_contour[0] if adjusted_contour else 'N/A'}")
                     logging.debug(f"Aimbot: Converted to absolute center={center_abs}")
             else:
                 logging.debug("Aimbot: No target detected in current frame")
@@ -158,10 +167,15 @@ class AimbotWorker(BaseWorker):
                     'target': detection['screen_position'],
                     'target_center': detection['center'],
                     'bbox': detection['bounding_box'],
-                    'frame_dims': (self._screen_width, self._screen_height)
+                    'frame_dims': (self._screen_width, self._screen_height),
+                    'target_contour': detection.get('contour', None)
                 }
+                if data_to_send.get('target_contour'):
+                    logging.debug(f"Aimbot: sending contour with {len(data_to_send['target_contour'])} points to overlay")
+                else:
+                    logging.debug("Aimbot: no contour to send (none in detection)")
             else:
-                data_to_send = {'target': None, 'target_center': None, 'bbox': None}
+                data_to_send = {'target': None, 'target_center': None, 'bbox': None, 'target_contour': None}
             if mask is not None:
                 data_to_send['mask'] = mask
             self.overlay_data.update(data_to_send)

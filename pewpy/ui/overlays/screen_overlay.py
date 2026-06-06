@@ -1,11 +1,12 @@
 #   pewpy/ui/overlays/screen_overlay.py
-#   Full‑screen overlay for bounding boxes, crosshairs, target render
+#   Full‑screen overlay for bounding boxes, crosshairs, target render,
+#   and now enemy outline contour drawing.
 
 # ----- Imports ----- 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List
 import ctypes
-from ctypes import wintypes, byref
+from ctypes import wintypes, byref, POINTER, sizeof
 from .base_overlay import _NativeOverlay
 from .win32_helpers import (
     user32, gdi32, SetWindowPos,
@@ -13,7 +14,8 @@ from .win32_helpers import (
     CreateCompatibleDC, CreateCompatibleBitmap, SelectObject,
     DeleteDC, DeleteObject, BitBlt, SRCCOPY,
     FillRect, CreatePen, MoveToEx, LineTo, Rectangle, Ellipse,
-    DeleteObject as GdiDeleteObject
+    DeleteObject as GdiDeleteObject,
+    Polyline, POINT
 )
 
 # ----- Main Class ----- #
@@ -32,9 +34,11 @@ class ScreenOverlay(_NativeOverlay) :
         with self._data_lock :
             self._shapes = data.copy()
             if data.get('target_outline'):
-                logging.debug(f"ScreenOverlay.update_drawings: target_outline=True, pos={data.get('target_outline_pos')}")
-            elif data.get('target_outline') is False and 'target_outline' in data:
-                logging.debug("ScreenOverlay.update_drawings: target_outline disabled")
+                contour = data.get('target_contour')
+                if contour:
+                    logging.debug(f"ScreenOverlay.update_drawings: target_outline=True, contour points={len(contour)}")
+                else:
+                    logging.debug(f"ScreenOverlay.update_drawings: target_outline=True, no contour, pos={data.get('target_outline_pos')}")
             if data.get('roi_circle'):
                 logging.debug(f"ScreenOverlay.update_drawings: roi_circle=True, pos={data.get('roi_circle_pos')}, radius={data.get('roi_circle_radius')}")
         self._post_repaint()
@@ -95,22 +99,40 @@ class ScreenOverlay(_NativeOverlay) :
                 Ellipse(mem_dc, ox - radius, oy - radius, ox + radius, oy + radius)
                 SelectObject(mem_dc, old_brush)
 
-        # Target render circle – exact copy of mouse outline, but in red and 3 px larger
+        # Target render – draw contour outline if available, else centroid circle
         if shapes.get('target_outline'):
-            target_pos = shapes.get('target_outline_pos')
-            if target_pos and len(target_pos) == 2:
-                tx, ty = target_pos
-                radius = 11                      # mouse outline radius 8 + 3
-                target_red_pen = CreatePen(0, 1, 0x000000FF)   # thin red, like mouse outline
-                hollow_brush = gdi32.GetStockObject(5)
-                old_brush2 = SelectObject(mem_dc, hollow_brush)
-                old_pen2 = SelectObject(mem_dc, target_red_pen)
-
-                Ellipse(mem_dc, tx - radius, ty - radius, tx + radius, ty + radius)
-
+            contour = shapes.get('target_contour')
+            if contour and len(contour) >= 2:
+                # Draw enemy outline as a polygon
+                logging.debug(f"ScreenOverlay.paint: drawing target contour with {len(contour)} points")
+                contour_pen = CreatePen(0, 2, 0x000000FF)  # red, 2px
+                old_pen2 = SelectObject(mem_dc, contour_pen)
+                # Convert list of (x,y) to array of POINT
+                points_array = (POINT * len(contour))()
+                for i, (px, py) in enumerate(contour):
+                    points_array[i].x = px
+                    points_array[i].y = py
+                # Draw polygon (closed automatically by Polyline if last point != first? We'll ensure closed)
+                gdi32.Polyline(mem_dc, points_array, len(contour))
+                # If the contour is not closed, you could call Polyline again from last to first,
+                # but typical contours from cv2 are closed. We'll leave it.
                 SelectObject(mem_dc, old_pen2)
-                SelectObject(mem_dc, old_brush2)
-                GdiDeleteObject(target_red_pen)
+                GdiDeleteObject(contour_pen)
+            else:
+                # Fallback: draw centroid circle
+                target_pos = shapes.get('target_outline_pos')
+                if target_pos and len(target_pos) == 2:
+                    logging.debug("ScreenOverlay.paint: no contour, drawing centroid circle")
+                    tx, ty = target_pos
+                    radius = 11
+                    target_red_pen = CreatePen(0, 1, 0x000000FF)
+                    hollow_brush = gdi32.GetStockObject(5)
+                    old_brush2 = SelectObject(mem_dc, hollow_brush)
+                    old_pen2 = SelectObject(mem_dc, target_red_pen)
+                    Ellipse(mem_dc, tx - radius, ty - radius, tx + radius, ty + radius)
+                    SelectObject(mem_dc, old_pen2)
+                    SelectObject(mem_dc, old_brush2)
+                    GdiDeleteObject(target_red_pen)
 
         # ROI circle – drawn when aimbot's Region of Interest is enabled
         if shapes.get('roi_circle'):

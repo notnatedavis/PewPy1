@@ -1,6 +1,7 @@
 #   pewpy/ui/overlays/win32_helpers.py
 #   Win32 definitions, constants, and the shared window procedure
 #   for native layered overlay windows.
+#   Now includes Polyline and POINT for contour drawing.
 
 # ----- Imports ----- 
 import threading
@@ -147,7 +148,13 @@ if platform.system() == "Windows" :
     CreatePen = gdi32.CreatePen
     Rectangle = gdi32.Rectangle
     Ellipse = gdi32.Ellipse
-    StretchDIBits = gdi32.StretchDIBits          # <--- ADDED: needed by MaskOverlay
+    StretchDIBits = gdi32.StretchDIBits
+
+    # Contour drawing support
+    Polyline = gdi32.Polyline
+    Polyline.argtypes = [wintypes.HDC, ctypes.POINTER(wintypes.POINT), ctypes.c_int]
+    Polyline.restype = wintypes.BOOL
+    POINT = wintypes.POINT
 
     hinst = kernel32.GetModuleHandleW(None)
 

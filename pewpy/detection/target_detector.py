@@ -1,13 +1,14 @@
 #   pewpy/detection/target_detector.py
 #   OpenCV target detection with GPU acceleration, confidence filtering,
 #   outline mode, and mask access for debug preview.
+#   Now returns the contour points for target outline rendering.
 
 # ----- Imports ----- #
 import cv2
 import numpy as np
 import logging
 import threading
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict, Any, List
 
 # ----- Main Class ----- #
 class TargetDetector:
@@ -16,6 +17,8 @@ class TargetDetector:
     - normal : uses contour area and confidence threshold (good for solid blobs)
     - outline : bypasses confidence, automatically uses full S/V range and
                 a very small minimum area to capture thin borders (hollow targets)
+
+    New: returns contour points of the best target for real-time outline rendering.
     """
 
     def __init__(self, 
@@ -61,7 +64,8 @@ class TargetDetector:
 
     def detect_targets(self, frame: np.ndarray) -> Optional[Dict[str, Any]]:
         """Detect targets in a frame and return detection results,
-        filtered according to the active mode (normal or outline)."""
+        filtered according to the active mode (normal or outline).
+        The result now includes a 'contour' key with the raw contour points."""
         if frame is None:
             logging.debug("TargetDetector: frame is None")
             return None
@@ -77,6 +81,12 @@ class TargetDetector:
                 self.detection_result = result
             with self.mask_lock:
                 self.latest_mask = mask
+
+            if result:
+                pts_count = len(result.get('contour', []))
+                logging.debug(f"TargetDetector: detection result -> contour points: {pts_count}, center: {result.get('center')}")
+            else:
+                logging.debug("TargetDetector: no detection result")
 
             return result
 
@@ -137,9 +147,10 @@ class TargetDetector:
     def _process_contours(self, contours: list, frame_shape: Tuple[int, int]) -> Optional[Dict[str, Any]]:
         """Process contours according to the active detection mode.
         - Normal mode: picks the contour with highest confidence that meets
-          area and confidence thresholds.
+          area and confidence thresholds, and returns its contour points.
         - Outline mode: picks the largest contour by area (above a tiny
-          minimum) and returns its bounding box center; confidence is ignored."""
+          minimum) and returns its bounding box center; confidence is ignored.
+        Both modes now include the raw contour points as a list of (x,y) tuples."""
 
         if not contours:
             logging.debug("TargetDetector: No contours found")
@@ -152,6 +163,7 @@ class TargetDetector:
             min_area_eff = max(1, self.min_area_outline)
             best_area = -1
             best_bbox = None
+            best_contour = None
             for cnt in contours:
                 area = cv2.contourArea(cnt)
                 if area < min_area_eff:
@@ -162,6 +174,7 @@ class TargetDetector:
                     best_area = area
                     x, y, w, h = cv2.boundingRect(cnt)
                     best_bbox = (x, y, w, h)
+                    best_contour = cnt
 
             if best_bbox is None:
                 logging.debug(f"TargetDetector (outline): No contour passed area filter (min={min_area_eff})")
@@ -172,19 +185,25 @@ class TargetDetector:
             cy = y + h // 2
             screen_x = cx / frame_w
             screen_y = cy / frame_h
+
+            # Convert contour to list of (x,y) ints
+            contour_points = [(int(pt[0][0]), int(pt[0][1])) for pt in best_contour] if best_contour is not None else []
+            logging.debug(f"TargetDetector (outline): contour pts={len(contour_points)}, bbox={best_bbox}, center=({cx},{cy})")
+
             result = {
                 'center': (cx, cy),
                 'bounding_box': (x, y, w, h),
                 'confidence': 1.0,
-                'screen_position': (screen_x, screen_y)
+                'screen_position': (screen_x, screen_y),
+                'contour': contour_points
             }
-            logging.debug(f"TargetDetector (outline): bbox={best_bbox}, center=({cx},{cy})")
             return result
 
         else:
             # ---- Normal mode: confidence + area ----
             best_result = None
             best_confidence = -1.0
+            best_contour = None
 
             for cnt in contours:
                 area = cv2.contourArea(cnt)
@@ -215,8 +234,17 @@ class TargetDetector:
                         'center': (cx, cy),
                         'bounding_box': (x, y, w, h),
                         'confidence': confidence,
-                        'screen_position': (screen_x, screen_y)
+                        'screen_position': (screen_x, screen_y),
+                        'contour': []  # will fill after loop
                     }
+                    best_contour = cnt
+
+            if best_result is not None and best_contour is not None:
+                contour_points = [(int(pt[0][0]), int(pt[0][1])) for pt in best_contour]
+                best_result['contour'] = contour_points
+                logging.debug(f"TargetDetector (normal): contour pts={len(contour_points)}, center=({best_result['center']})")
+            elif best_result is not None:
+                logging.debug("TargetDetector (normal): no contour stored")
 
             if best_result is None:
                 logging.debug("TargetDetector (normal): No contour passed all filters")
