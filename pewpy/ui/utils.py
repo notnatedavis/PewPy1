@@ -5,21 +5,16 @@
 import customtkinter as ctk
 
 # ----- Main ----- #
-def create_centered_frame(parent) -> ctk.CTkFrame :
-    # Create a frame that centers its content horizontally and vertically
-    # inside the given parent.
-
-    # Returns the inner (content) frame where widgets should be placed
+def create_content_frame(parent) -> ctk.CTkFrame:
+    """
+    Create a frame that fills the entire parent area and expands with it.
+    This should be used as the base container for any tab content.
+    """
     outer = ctk.CTkFrame(parent, fg_color="transparent")
-    outer.grid(row=0, column=0, sticky="nsew")
-    outer.grid_rowconfigure(0, weight=1)   # top stretch
-    outer.grid_columnconfigure(0, weight=1)
+    outer.pack(fill="both", expand=True)
+    return outer
 
-    center_frame = ctk.CTkFrame(outer, fg_color="transparent")
-    center_frame.grid(row=0, column=0, sticky="")
-
-    # Additional weight rows to keep center_frame centered
-    outer.grid_rowconfigure(0, weight=1)
-    outer.grid_rowconfigure(2, weight=1)
-
-    return center_frame
+# Keep old name for backward compatibility if needed, but mark as deprecated
+def create_centered_frame(parent) -> ctk.CTkFrame:
+    """Deprecated: use create_content_frame instead."""
+    return create_content_frame(parent)

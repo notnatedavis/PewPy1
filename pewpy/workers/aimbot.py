@@ -1,6 +1,7 @@
 #   pewpy/workers/aimbot.py
 #   Aimbot worker (passive) coordinating capture, detection, mouse.
 #   Now passes target contour to overlay for real‑time outline rendering.
+#   Also sends detection debug info to UI queue.
 
 # ----- Imports ----- #
 import threading
@@ -26,7 +27,9 @@ class AimbotWorker(BaseWorker):
     """Aimbot: captures screen, detects targets, moves mouse.
     Activation key toggles the aiming on/off while the worker is running.
     ROI mode restricts detection to a circular area around the mouse cursor.
-    Target contour data is sent to the overlay bridge for real‑time outline rendering."""
+    Target contour data is sent to the overlay bridge for real‑time outline rendering.
+    Debug info (HSV bounds, detection status) is sent to the UI queue every ~0.5s.
+    """
 
     def __init__(self, 
                  capture_region: Optional[Tuple[int, int, int, int]] = None,
@@ -34,13 +37,15 @@ class AimbotWorker(BaseWorker):
                  hsv_range: Tuple[Tuple[int, int, int], Tuple[int, int, int]] = ((0, 120, 70), (10, 255, 255)),
                  smooth_factor: float = 0.2,
                  activation_key: str = 'alt_l',
-                 overlay_data: Optional[OverlayData] = None) -> None:
+                 overlay_data: Optional[OverlayData] = None,
+                 debug_queue: Optional[queue.Queue] = None) -> None:
         super().__init__()
         self.capture_region = capture_region
         self.target_fps = target_fps
         self.smooth_factor = max(0.01, min(1.0, smooth_factor))
         self.activation_key = activation_key
         self.overlay_data = overlay_data
+        self.debug_queue = debug_queue   # UI queue for debug messages
 
         self.roi_enabled = False
         self.roi_radius = 150
@@ -61,6 +66,11 @@ class AimbotWorker(BaseWorker):
 
         self._screen_width = 1920
         self._screen_height = 1080
+
+        # Debug throttling
+        self._last_debug_time = 0.0
+        self._debug_interval = 0.5  # seconds
+
         logging.info(f"Aimbot initialized - Region: {capture_region}, FPS: {target_fps}")
 
     def _on_key_press(self, key) -> None:
@@ -134,8 +144,10 @@ class AimbotWorker(BaseWorker):
                 logging.debug("Aimbot: ROI region invalid, skipping detection")
 
         detection = None
+        best_candidate = None
         if detection_frame is not None:
             detection = self.detector.detect_targets(detection_frame)
+            best_candidate = self.detector.get_best_candidate()   # get candidate for debug
             if detection is not None:
                 logging.debug(f"Aimbot: Detection found! Confidence={detection.get('confidence',0):.2f}, center={detection['center']}, contour pts={len(detection.get('contour', []))}")
                 if roi_offset != (0,0):
@@ -180,8 +192,46 @@ class AimbotWorker(BaseWorker):
                 data_to_send['mask'] = mask
             self.overlay_data.update(data_to_send)
 
+        # Send debug info to UI (throttled)
+        if self.debug_queue is not None:
+            now = time.time()
+            if now - self._last_debug_time >= self._debug_interval:
+                self._last_debug_time = now
+                debug_data = self._collect_debug_info(detection, best_candidate)
+                try:
+                    self.debug_queue.put_nowait({'type': 'detection_debug', 'data': debug_data})
+                except queue.Full:
+                    pass  # drop update if queue is full
+
         if detection is not None and self._aiming_enabled.is_set():
             self._aim_at_target(detection)
+
+    def _collect_debug_info(self, detection: Optional[Dict], best_candidate: Optional[Dict]) -> Dict:
+        """Collect current HSV bounds (user-friendly), detection status, and candidate info."""
+        # Convert OpenCV HSV (0-179,0-255,0-255) to user-friendly (0-360,0-100,0-100)
+        lower_cv = self.detector.lower_hsv
+        upper_cv = self.detector.upper_hsv
+        lower_user = (int(lower_cv[0] * 2), int(lower_cv[1] / 255 * 100), int(lower_cv[2] / 255 * 100))
+        upper_user = (int(upper_cv[0] * 2), int(upper_cv[1] / 255 * 100), int(upper_cv[2] / 255 * 100))
+
+        info = {
+            'hsv_lower_user': lower_user,
+            'hsv_upper_user': upper_user,
+            'target_detected': detection is not None,
+        }
+        if detection is not None:
+            info['center'] = detection.get('center')
+            info['confidence'] = detection.get('confidence')
+            info['contour_points'] = len(detection.get('contour', []))
+        else:
+            # Provide best candidate if available
+            if best_candidate is not None:
+                info['candidate_center'] = best_candidate.get('center')
+                info['candidate_confidence'] = best_candidate.get('confidence')
+            else:
+                info['candidate_center'] = None
+                info['candidate_confidence'] = None
+        return info
 
     def _aim_at_target(self, detection: Dict[str, Any]) -> None:
         if self.mouse is None:

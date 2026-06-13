@@ -29,9 +29,13 @@ class AimbotTab(BaseTab):
         super().__init__(parent_tab, app, ui_queue)
 
     def _create_widgets(self) -> None:
+        # Use a scrollable frame as the main container for this tab
+        self.scroll_frame = ctk.CTkScrollableFrame(self.frame, fg_color="transparent")
+        self.scroll_frame.pack(fill="both", expand=True)
+
         # ----- Aimbot toggle button (standalone) -----
         self.aimbot_btn = ctk.CTkButton(
-            self.frame,
+            self.scroll_frame,
             text="Aimbot: (off)",
             command=self.toggle_aimbot,
             width=180,
@@ -43,11 +47,11 @@ class AimbotTab(BaseTab):
         self.aimbot_btn.pack(pady=(20, 10), anchor="center")
 
         # ====== Detection Settings section ======
-        detect_header = ctk.CTkLabel(self.frame, text="Detection Settings",
+        detect_header = ctk.CTkLabel(self.scroll_frame, text="Detection Settings",
                                      font=ctk.CTkFont(size=13, weight="bold"))
         detect_header.pack(pady=(5, 5), anchor="center")
 
-        detect_frame = ctk.CTkFrame(self.frame)
+        detect_frame = ctk.CTkFrame(self.scroll_frame)
         detect_frame.pack(pady=5, fill="x", padx=20)
 
         # ---- Lower HSV row ----
@@ -133,11 +137,11 @@ class AimbotTab(BaseTab):
         self._update_upper_preview()
 
         # ====== Aim Settings section ======
-        aim_header = ctk.CTkLabel(self.frame, text="Aim Settings",
+        aim_header = ctk.CTkLabel(self.scroll_frame, text="Aim Settings",
                                   font=ctk.CTkFont(size=13, weight="bold"))
         aim_header.pack(pady=(15, 5), anchor="center")
 
-        aim_frame = ctk.CTkFrame(self.frame)
+        aim_frame = ctk.CTkFrame(self.scroll_frame)
         aim_frame.pack(pady=5, fill="x", padx=20)
 
         # Smooth factor
@@ -178,11 +182,11 @@ class AimbotTab(BaseTab):
         self.activation_key_entry.pack(side="left", padx=5)
 
         # ====== Region of Interest section ======
-        roi_header = ctk.CTkLabel(self.frame, text="Region of Interest",
+        roi_header = ctk.CTkLabel(self.scroll_frame, text="Region of Interest",
                                   font=ctk.CTkFont(size=13, weight="bold"))
         roi_header.pack(pady=(15, 5), anchor="center")
 
-        roi_frame = ctk.CTkFrame(self.frame)
+        roi_frame = ctk.CTkFrame(self.scroll_frame)
         roi_frame.pack(pady=5, fill="x", padx=20)
 
         self.roi_enabled_var = ctk.BooleanVar(value=False)
@@ -207,7 +211,7 @@ class AimbotTab(BaseTab):
         self.roi_radius_label.pack(side="left")
 
         # ====== Action buttons ======
-        button_row = ctk.CTkFrame(self.frame, fg_color="transparent")
+        button_row = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         button_row.pack(pady=(15, 5), anchor="center")
 
         self.aimbot_apply_btn = ctk.CTkButton(

@@ -3,7 +3,7 @@
 
 # ----- Imports ----- #
 import customtkinter as ctk
-from ..utils import create_centered_frame
+from ..utils import create_content_frame
 
 # ----- Main Class ----- #
 class BaseTab :
@@ -13,7 +13,7 @@ class BaseTab :
     def __init__(self, parent_tab, app, ui_queue) -> None :
         self.app = app
         self.ui_queue = ui_queue
-        self.frame = create_centered_frame(parent_tab)
+        self.frame = create_content_frame(parent_tab)
         self._create_widgets()
 
     def _create_widgets(self) -> None :
@@ -24,5 +24,4 @@ class BaseTab :
         # Called by the main window when a worker's state changes
         # The default implementation is a no-op; tabs should override
         # if they host worker toggle buttons
-
         pass

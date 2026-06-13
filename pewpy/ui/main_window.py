@@ -1,6 +1,7 @@
 #   pewpy/ui/main_window.py
 #   Modern CustomTkinter UI for PewPy – delegates tabs to separate modules
 #   Now feeds target contour to the screen overlay for outline rendering.
+#   Also forwards detection debug messages to the General tab.
 
 # ----- Imports ----- #
 import threading
@@ -57,6 +58,12 @@ class ModernMainWindow :
         # start UI updater
         self._start_ui_updater()
         self._start_overlay_updates()
+
+        # Give aimbot a reference to the UI queue for debug messages
+        aimbot = self.app.workers.get('aimbot')
+        if aimbot:
+            aimbot.debug_queue = self._ui_queue
+            logging.debug("Aimbot debug queue attached")
 
         # handle window close
         self.root.protocol("WM_DELETE_WINDOW", self.shutdown)
@@ -136,6 +143,18 @@ class ModernMainWindow :
                     hsv = update.get('hsv')
                     if hsv:
                         self.tabs['mouse'].update_hsv_display(*hsv)
+            elif update_type == 'debug_data':
+                # Forward system stats to General tab's debug window
+                if 'general' in self.tabs and hasattr(self.tabs['general'], 'update_debug_info'):
+                    self.tabs['general'].update_debug_info(update.get('data', {}))
+            elif update_type == 'debug_log':
+                # Forward log message to General tab's debug window
+                if 'general' in self.tabs and hasattr(self.tabs['general'], 'handle_debug_log'):
+                    self.tabs['general'].handle_debug_log(update.get('log', ''))
+            elif update_type == 'detection_debug':
+                # Forward detection debug info to General tab
+                if 'general' in self.tabs and hasattr(self.tabs['general'], 'update_detection_debug'):
+                    self.tabs['general'].update_detection_debug(update.get('data', {}))
         except Exception as e :
             logging.error(f"Failed to apply UI update: {e}")
 

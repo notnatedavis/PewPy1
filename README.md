@@ -42,6 +42,7 @@ All workers can be toggled on/off independently through a modern `customtkinter`
 ## Project Structure
 
 ```bash
+PewPy/
 ├── config/
 │   ├── default.yaml               # core application settings
 │   └── performance.yaml           # user‑override / performance tuning
@@ -84,7 +85,7 @@ All workers can be toggled on/off independently through a modern `customtkinter`
 │   │   │   ├── __init__.py
 │   │   │   ├── aimbot_tab.py
 │   │   │   ├── base_tab.py
-│   │   │   ├── general_tab.py
+│   │   │   ├── general_tab.py # debug window
 │   │   │   ├── mouse_tab.py
 │   │   │   └── overlays_tab.py
 │   │   ├── __init__.py

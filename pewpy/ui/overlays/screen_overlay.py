@@ -33,14 +33,6 @@ class ScreenOverlay(_NativeOverlay) :
     def update_drawings(self, data: Dict[str, Any]) -> None :
         with self._data_lock :
             self._shapes = data.copy()
-            if data.get('target_outline'):
-                contour = data.get('target_contour')
-                if contour:
-                    logging.debug(f"ScreenOverlay.update_drawings: target_outline=True, contour points={len(contour)}")
-                else:
-                    logging.debug(f"ScreenOverlay.update_drawings: target_outline=True, no contour, pos={data.get('target_outline_pos')}")
-            if data.get('roi_circle'):
-                logging.debug(f"ScreenOverlay.update_drawings: roi_circle=True, pos={data.get('roi_circle_pos')}, radius={data.get('roi_circle_radius')}")
         self._post_repaint()
 
     def _on_paint(self) -> None :

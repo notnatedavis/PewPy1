@@ -181,6 +181,8 @@ class MouseTab(BaseTab):
         from pynput.mouse import Controller as MouseCtrl
 
         mouse = MouseCtrl()
+        # Note: dxcam.create(output_color="RGB") may still return BGR on some systems.
+        # We will convert using BGR2HSV to be safe (common for screen capture libraries).
         camera = dxcam.create(output_color="RGB")
         if not camera:
             logging.error("HSV reader: failed to create dxcam camera")
@@ -194,14 +196,21 @@ class MouseTab(BaseTab):
                 region = (x, y, x + 1, y + 1)
                 frame = camera.grab(region=region)
                 if frame is not None and frame.size > 0:
-                    pixel_rgb = frame[0, 0]                # (R, G, B)
-                    rgb_reshaped = np.array([[pixel_rgb]], dtype=np.uint8)
-                    hsv_pixel = cv2.cvtColor(rgb_reshaped, cv2.COLOR_RGB2HSV)[0, 0]
+                    # frame[0,0] is a 3-element array. dxcam claims RGB but often gives BGR.
+                    # Using BGR2HSV because that matches the actual order on most Windows setups.
+                    pixel_bgr = frame[0, 0]           # (B, G, R) or (R, G, B) – we don't know.
+                    # Reshape for cvtColor: 1x1 image with 3 channels
+                    bgr_reshaped = np.array([[pixel_bgr]], dtype=np.uint8)
+                    # Convert BGR to HSV (most reliable for dxcam)
+                    hsv_pixel = cv2.cvtColor(bgr_reshaped, cv2.COLOR_BGR2HSV)[0, 0]
 
-                    # Convert to standard colour‑picker ranges
-                    h_deg = int(hsv_pixel[0] * 2)          # 0-179 → 0-358
+                    # Convert to user‑friendly ranges
+                    h_deg = int(hsv_pixel[0] * 2)          # 0-179 → 0-358 (≈0-360)
                     s_pct = int(hsv_pixel[1] / 255 * 100)  # 0-255 → 0-100%
                     v_pct = int(hsv_pixel[2] / 255 * 100)  # 0-255 → 0-100%
+
+                    # Debug: log raw pixel and HSV for verification (optional, can be removed)
+                    # logging.debug(f"Raw pixel: {pixel_bgr}, HSV(OpenCV): {hsv_pixel}")
 
                     try:
                         self.ui_queue.put_nowait({'type': 'hsv_update', 'hsv': (h_deg, s_pct, v_pct)})
@@ -220,7 +229,7 @@ class MouseTab(BaseTab):
             pass
 
     def update_hsv_display(self, h: int, s: int, v: int) -> None:
-        """Called from main thread to update the HSV label (360°, %, %)."""
+        # called from main thread to update the HSV label (360°, %, %)."""
         self.hsv_label.configure(text=f"HSV: ({h}°, {s}%, {v}%)")
 
     # ------------------ Worker state update ------------------
