@@ -9,8 +9,8 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 
 # ----- Main Class ----- #
-class Config:
-    # Central configuration manager with hot-reload capability
+class Config :
+    # central configuration manager with hot-reload capability
     
     def __init__(self, config_dir: Optional[str] = None) :
         self.config_dir = Path(config_dir) if config_dir else Path(__file__).parent.parent.parent / "config"
@@ -19,14 +19,14 @@ class Config:
         self.load()
         
     def load(self) -> None :
-        # Load configuration from YAML files
+        # load configuration from YAML files
         default_path = self.config_dir / "default.yaml"
         perf_path = self.config_dir / "performance.yaml"
         
-        # Start with empty config
+        # start with empty config
         new_config = {}
         
-        # Load default
+        # load default
         if default_path.exists() :
             with open(default_path, 'r') as f :
                 default = yaml.safe_load(f) or {}
@@ -35,7 +35,7 @@ class Config:
         else :
             logging.warning(f"Default config not found: {default_path}")
             
-        # Override with performance (user) config
+        # override with performance (user) config
         if perf_path.exists() :
             with open(perf_path, 'r') as f :
                 perf = yaml.safe_load(f) or {}
@@ -46,12 +46,12 @@ class Config:
         logging.info(f"Configuration loaded from: {', '.join(self._loaded_files)}")
         
     def reload(self) -> None :
-        # Reload configuration from disk
+        # reload configuration from disk
         self.load()
         logging.info("Configuration reloaded")
         
     def get(self, key: str, default: Any = None) -> Any :
-        # Get a configuration value using dot notation (e.g., 'workers.aimbot.target_fps')
+        # get a configuration value using dot notation (e.g., 'workers.aimbot.target_fps')
         keys = key.split('.')
         value = self.config
         for k in keys :
@@ -64,7 +64,7 @@ class Config:
         return value if value is not None else default
     
     def _merge_dict(self, base: Dict, override: Dict) -> None :
-        # Recursively merge override dict into base
+        # recursively merge override dict into base
         for key, value in override.items() :
             if key in base and isinstance(base[key], dict) and isinstance(value, dict) :
                 self._merge_dict(base[key], value)

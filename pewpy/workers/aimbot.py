@@ -21,6 +21,7 @@ from .base import BaseWorker
 from ..capture.dxcam_capturer import ScreenCapturer
 from ..detection.target_detector import TargetDetector
 from ..communication.overlay_bridge import OverlayData
+from pewpy.utils.color import opencv_hsv_to_user
 
 # ----- Main Class ----- #
 class AimbotWorker(BaseWorker):
@@ -31,7 +32,7 @@ class AimbotWorker(BaseWorker):
     Debug info (HSV bounds, detection status) is sent to the UI queue every ~0.5s.
     """
 
-    def __init__(self, 
+    def __init__(self,
                  capture_region: Optional[Tuple[int, int, int, int]] = None,
                  target_fps: int = 60,
                  hsv_range: Tuple[Tuple[int, int, int], Tuple[int, int, int]] = ((0, 120, 70), (10, 255, 255)),
@@ -208,11 +209,11 @@ class AimbotWorker(BaseWorker):
 
     def _collect_debug_info(self, detection: Optional[Dict], best_candidate: Optional[Dict]) -> Dict:
         """Collect current HSV bounds (user-friendly), detection status, and candidate info."""
-        # Convert OpenCV HSV (0-179,0-255,0-255) to user-friendly (0-360,0-100,0-100)
+        # Convert OpenCV HSV to user-friendly using utility
         lower_cv = self.detector.lower_hsv
         upper_cv = self.detector.upper_hsv
-        lower_user = (int(lower_cv[0] * 2), int(lower_cv[1] / 255 * 100), int(lower_cv[2] / 255 * 100))
-        upper_user = (int(upper_cv[0] * 2), int(upper_cv[1] / 255 * 100), int(upper_cv[2] / 255 * 100))
+        lower_user = opencv_hsv_to_user(int(lower_cv[0]), int(lower_cv[1]), int(lower_cv[2]))
+        upper_user = opencv_hsv_to_user(int(upper_cv[0]), int(upper_cv[1]), int(upper_cv[2]))
 
         info = {
             'hsv_lower_user': lower_user,

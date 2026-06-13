@@ -44,11 +44,11 @@ All workers can be toggled on/off independently through a modern `customtkinter`
 ```bash
 PewPy/
 ├── config/
-│   ├── default.yaml               # core application settings
-│   └── performance.yaml           # user‑override / performance tuning
+│   ├── default.yaml   # core application settings
+│   └── performance.yaml   # user‑override / performance tuning
 ├── docs/
 │   └── ToDo.md
-├── logs/                          # runtime logs (not tracked)
+├── logs/   # runtime logs (not tracked)
 ├── pewpy/
 │   ├── capture/
 │   │   ├── __init__.py
@@ -85,7 +85,8 @@ PewPy/
 │   │   │   ├── __init__.py
 │   │   │   ├── aimbot_tab.py
 │   │   │   ├── base_tab.py
-│   │   │   ├── general_tab.py # debug window
+│   │   │   ├── debug_window.py
+│   │   │   ├── general_tab.py
 │   │   │   ├── mouse_tab.py
 │   │   │   └── overlays_tab.py
 │   │   ├── __init__.py
@@ -93,6 +94,7 @@ PewPy/
 │   │   └── utils.py
 │   ├── utils/
 │   │   ├── __init__.py
+│   │   ├── color.py
 │   │   ├── logging_setup.py
 │   │   └── platform.py
 │   ├── workers/
@@ -103,7 +105,7 @@ PewPy/
 │   ├── __init__.py
 │   └── main.py
 ├── .gitignore
-├── README.md                       # (you are here, hi!)
+├── README.md   # (you are here, hi!)
 ├── requirements.txt
 └── setup.py
 ```

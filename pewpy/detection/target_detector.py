@@ -11,6 +11,7 @@ import numpy as np
 import logging
 import threading
 from typing import Optional, Tuple, Dict, Any, List
+from pewpy.utils.color import user_hsv_to_opencv
 
 # ----- Main Class ----- #
 class TargetDetector:
@@ -26,7 +27,7 @@ class TargetDetector:
     excluded from detection.
     """
 
-    def __init__(self, 
+    def __init__(self,
                  lower_hsv: Tuple[int, int, int] = (0, 120, 70),
                  upper_hsv: Tuple[int, int, int] = (10, 255, 255),
                  min_area: int = 50,
@@ -80,10 +81,8 @@ class TargetDetector:
         A tolerance (hue_tol in degrees, sat_tol/val_tol in percentage points) is applied
         to create a small range around the given centre.
         """
-        # Convert center to OpenCV scale
-        h_cv = int(h_center / 2)  # 0-179
-        s_cv = int(s_pct * 255 / 100)
-        v_cv = int(v_pct * 255 / 100)
+        # Convert to OpenCV scale using utility
+        h_cv, s_cv, v_cv = user_hsv_to_opencv(h_center, s_pct, v_pct)
 
         # Tolerances in OpenCV units
         h_tol_cv = max(1, hue_tol // 2)   # because 1° = 0.5 in OpenCV H

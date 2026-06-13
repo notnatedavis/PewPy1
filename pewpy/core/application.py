@@ -22,7 +22,7 @@ class PewPyApplication :
         self.resource_manager = ResourceManager(self.config.config)
         self._lock = threading.RLock()
         
-        # Use the factory to build all workers and the communication bridge
+        # use factory to build all workers and communication bridge
         self.workers, self.overlay_data = create_workers(self.config)
         
         if self.config.get('resource_manager.enabled', True) :

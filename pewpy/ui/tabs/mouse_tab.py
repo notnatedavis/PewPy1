@@ -7,6 +7,7 @@ import logging
 import threading
 import time
 from .base_tab import BaseTab
+from pewpy.utils.color import opencv_hsv_to_user
 
 # ----- Main Class ----- #
 class MouseTab(BaseTab):
@@ -204,10 +205,8 @@ class MouseTab(BaseTab):
                     # Convert BGR to HSV (most reliable for dxcam)
                     hsv_pixel = cv2.cvtColor(bgr_reshaped, cv2.COLOR_BGR2HSV)[0, 0]
 
-                    # Convert to user‑friendly ranges
-                    h_deg = int(hsv_pixel[0] * 2)          # 0-179 → 0-358 (≈0-360)
-                    s_pct = int(hsv_pixel[1] / 255 * 100)  # 0-255 → 0-100%
-                    v_pct = int(hsv_pixel[2] / 255 * 100)  # 0-255 → 0-100%
+                    # Convert to user‑friendly ranges using utility
+                    h_deg, s_pct, v_pct = opencv_hsv_to_user(int(hsv_pixel[0]), int(hsv_pixel[1]), int(hsv_pixel[2]))
 
                     # Debug: log raw pixel and HSV for verification (optional, can be removed)
                     # logging.debug(f"Raw pixel: {pixel_bgr}, HSV(OpenCV): {hsv_pixel}")

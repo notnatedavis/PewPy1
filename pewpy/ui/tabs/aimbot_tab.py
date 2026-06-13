@@ -10,6 +10,7 @@ import customtkinter as ctk
 import logging
 from .base_tab import BaseTab
 import tkinter as tk
+from pewpy.utils.color import user_hsv_to_opencv, user_hsv_to_rgb_hex
 
 # ----- Main Class ----- #
 class AimbotTab(BaseTab):
@@ -237,25 +238,13 @@ class AimbotTab(BaseTab):
         self.reset_defaults_btn.pack(side="left")
 
     # --- Preview helpers (standard scale → RGB) ---
-    def _hsv_to_hex(self, h: int, s: int, v: int) -> str:
-        """
-        Convert HSV from standard colour-picker ranges
-        (H: 0-360°, S: 0-100%, V: 0-100%) to a hex RGB colour.
-        """
-        import colorsys
-        h_norm = (h % 360) / 360.0
-        s_norm = min(max(s, 0), 100) / 100.0
-        v_norm = min(max(v, 0), 100) / 100.0
-        r, g, b = colorsys.hsv_to_rgb(h_norm, s_norm, v_norm)
-        return f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
-
     def _update_lower_preview(self) -> None:
         if self.lower_color_canvas:
             try:
                 h = int(self.lower_h_var.get())
                 s = int(self.lower_s_var.get())
                 v = int(self.lower_v_var.get())
-                color = self._hsv_to_hex(h, s, v)
+                color = user_hsv_to_rgb_hex(h, s, v)
                 self.lower_color_canvas.configure(bg=color)
             except (ValueError, AttributeError):
                 self.lower_color_canvas.configure(bg="black")
@@ -266,22 +255,10 @@ class AimbotTab(BaseTab):
                 h = int(self.upper_h_var.get())
                 s = int(self.upper_s_var.get())
                 v = int(self.upper_v_var.get())
-                color = self._hsv_to_hex(h, s, v)
+                color = user_hsv_to_rgb_hex(h, s, v)
                 self.upper_color_canvas.configure(bg=color)
             except (ValueError, AttributeError):
                 self.upper_color_canvas.configure(bg="black")
-
-    # --- Standard → OpenCV conversion helpers ---
-    @staticmethod
-    def _to_opencv_hsv(h_std: int, s_pct: int, v_pct: int):
-        """
-        Convert standard HSV (0-360, 0-100%, 0-100%) to OpenCV's
-        internal ranges: H [0-179], S [0-255], V [0-255].
-        """
-        h_cv = max(0, min(179, int(h_std) // 2))
-        s_cv = max(0, min(255, int(s_pct * 255 / 100)))
-        v_cv = max(0, min(255, int(v_pct * 255 / 100)))
-        return h_cv, s_cv, v_cv
 
     def _update_smooth_label(self, value) -> None:
         self.smooth_value_label.configure(text=f"{float(value):.2f}")
@@ -360,9 +337,9 @@ class AimbotTab(BaseTab):
                 self.ui_queue.put_nowait({'type': 'status', 'message': 'Invalid HSV values (must be integers)'})
                 return
 
-            # Convert to OpenCV scale
-            lower_cv = self._to_opencv_hsv(lower_h, lower_s, lower_v)
-            upper_cv = self._to_opencv_hsv(upper_h, upper_s, upper_v)
+            # Convert to OpenCV scale using utility
+            lower_cv = user_hsv_to_opencv(lower_h, lower_s, lower_v)
+            upper_cv = user_hsv_to_opencv(upper_h, upper_s, upper_v)
 
             if hasattr(aimbot, 'set_hsv_range'):
                 aimbot.set_hsv_range(lower_cv, upper_cv)
