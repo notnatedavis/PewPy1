@@ -195,7 +195,8 @@ class TargetDetector:
         # CPU-based target detection
         if self.hsv_buffer is None or self.hsv_buffer.shape != frame.shape:
             self.hsv_buffer = np.empty_like(frame)
-        hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV, dst=self.hsv_buffer)
+        # Use RGB2HSV because capturer now outputs RGB
+        hsv_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2HSV, dst=self.hsv_buffer)
 
         # --- In outline mode, use full S/V range so only hue matters ---
         lower = self.lower_hsv.copy()
@@ -224,7 +225,8 @@ class TargetDetector:
             gpu_frame = cv2.cuda_GpuMat()
             gpu_frame.upload(frame, stream=self.gpu_stream)
 
-            gpu_hsv = cv2.cuda.cvtColor(gpu_frame, cv2.COLOR_BGR2HSV, stream=self.gpu_stream)
+            # Use RGB2HSV
+            gpu_hsv = cv2.cuda.cvtColor(gpu_frame, cv2.COLOR_RGB2HSV, stream=self.gpu_stream)
 
             # Same S/V override for outline mode
             lower = self.lower_hsv.copy()
@@ -240,8 +242,8 @@ class TargetDetector:
             self.gpu_stream.waitForCompletion()
 
             # Apply avoid mask on CPU (simpler than implementing GPU merging)
-            # Recreate hsv frame for avoid mask
-            hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            # Recreate hsv frame for avoid mask using RGB2HSV
+            hsv_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2HSV)
             final_mask = self._apply_avoid_mask(cpu_mask, hsv_frame)
 
             contours, _ = cv2.findContours(final_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)

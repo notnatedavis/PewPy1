@@ -27,6 +27,9 @@ class AimbotTab(BaseTab):
         self.upper_s_var = ctk.StringVar(value="100")  # 100%
         self.upper_v_var = ctk.StringVar(value="100")  # 100%
 
+        # Mouse control toggle
+        self.mouse_control_var = ctk.BooleanVar(value=False)
+
         super().__init__(parent_tab, app, ui_queue)
 
     def _create_widgets(self) -> None:
@@ -34,10 +37,10 @@ class AimbotTab(BaseTab):
         self.scroll_frame = ctk.CTkScrollableFrame(self.frame, fg_color="transparent")
         self.scroll_frame.pack(fill="both", expand=True)
 
-        # ----- Aimbot toggle button (standalone) -----
+        # ----- Detection toggle button (renamed from "Aimbot") -----
         self.aimbot_btn = ctk.CTkButton(
             self.scroll_frame,
-            text="Aimbot: (off)",
+            text="Detection: (off)",
             command=self.toggle_aimbot,
             width=180,
             height=40,
@@ -46,6 +49,25 @@ class AimbotTab(BaseTab):
             hover_color="#c82333"
         )
         self.aimbot_btn.pack(pady=(20, 10), anchor="center")
+
+        # ----- Mouse Control toggle (checkbox) -----
+        self.mouse_control_check = ctk.CTkCheckBox(
+            self.scroll_frame,
+            text="Enable Mouse Control",
+            variable=self.mouse_control_var,
+            command=self._toggle_mouse_control,
+            state="disabled"  # disabled until worker is running
+        )
+        self.mouse_control_check.pack(pady=(0, 2), anchor="center")
+
+        # Status label for mouse control state
+        self.mouse_status_label = ctk.CTkLabel(
+            self.scroll_frame,
+            text="Mouse: disabled",
+            font=ctk.CTkFont(size=11),
+            text_color="gray"
+        )
+        self.mouse_status_label.pack(pady=(0, 10), anchor="center")
 
         # ====== Detection Settings section ======
         detect_header = ctk.CTkLabel(self.scroll_frame, text="Detection Settings",
@@ -281,29 +303,52 @@ class AimbotTab(BaseTab):
             except Exception as e:
                 logging.error(f"Failed to toggle ROI: {e}")
 
+    # --- Mouse Control toggle ---
+    def _toggle_mouse_control(self) -> None:
+        enabled = self.mouse_control_var.get()
+        aimbot = self.app.workers.get('aimbot')
+        if aimbot and hasattr(aimbot, 'set_mouse_control'):
+            aimbot.set_mouse_control(enabled)
+            self.mouse_status_label.configure(
+                text=f"Mouse: {'enabled' if enabled else 'disabled'}",
+                text_color="green" if enabled else "gray"
+            )
+            self.ui_queue.put_nowait({'type': 'status', 'message': f'Mouse control {"enabled" if enabled else "disabled"}'})
+        else:
+            # Revert checkbox
+            self.mouse_control_var.set(not enabled)
+            self.ui_queue.put_nowait({'type': 'status', 'message': 'Aimbot worker not available'})
+
+    # --- Detection toggle (renamed from toggle_aimbot) ---
     def toggle_aimbot(self) -> None:
         try:
             worker_name = 'aimbot'
             if worker_name not in self.app.workers:
                 self.ui_queue.put_nowait({'type': 'status', 'message': 'Aimbot worker not available'})
                 return
-            self.ui_queue.put_nowait({'type': 'status', 'message': 'Processing aimbot...'})
+            self.ui_queue.put_nowait({'type': 'status', 'message': 'Processing detection...'})
             if self.app.is_worker_running(worker_name):
                 success = self.app.stop_worker(worker_name)
                 if success:
                     self.ui_queue.put_nowait({'type': 'worker_state', 'worker': 'aimbot', 'state': False})
-                    self.ui_queue.put_nowait({'type': 'status', 'message': 'Aimbot: STOPPED'})
+                    self.ui_queue.put_nowait({'type': 'status', 'message': 'Detection: STOPPED'})
+                    # Disable mouse control checkbox when worker stops
+                    self.mouse_control_check.configure(state="disabled")
+                    self.mouse_control_var.set(False)
+                    self.mouse_status_label.configure(text="Mouse: disabled", text_color="gray")
                 else:
-                    self.ui_queue.put_nowait({'type': 'status', 'message': 'Error: Failed to stop aimbot'})
+                    self.ui_queue.put_nowait({'type': 'status', 'message': 'Error: Failed to stop detection'})
             else:
                 success = self.app.start_worker(worker_name)
                 if success:
                     self.ui_queue.put_nowait({'type': 'worker_state', 'worker': 'aimbot', 'state': True})
-                    self.ui_queue.put_nowait({'type': 'status', 'message': 'Aimbot: RUNNING'})
+                    self.ui_queue.put_nowait({'type': 'status', 'message': 'Detection: RUNNING'})
+                    # Enable mouse control checkbox when worker starts
+                    self.mouse_control_check.configure(state="normal")
                 else:
-                    self.ui_queue.put_nowait({'type': 'status', 'message': 'Error: Failed to start aimbot'})
+                    self.ui_queue.put_nowait({'type': 'status', 'message': 'Error: Failed to start detection'})
         except Exception as e:
-            logging.error(f"Toggle aimbot error: {e}")
+            logging.error(f"Toggle detection error: {e}")
             self.ui_queue.put_nowait({'type': 'status', 'message': f'Error: {str(e)[:50]}'})
 
     def apply_aimbot_settings(self) -> None:
@@ -386,6 +431,27 @@ class AimbotTab(BaseTab):
     def update_worker_button(self, worker: str, is_running: bool) -> None:
         if worker == 'aimbot':
             if is_running:
-                self.aimbot_btn.configure(text="Aimbot: (on)", fg_color="#28a745", hover_color="#218838")
+                self.aimbot_btn.configure(text="Detection: (on)", fg_color="#28a745", hover_color="#218838")
+                self.mouse_control_check.configure(state="normal")
             else:
-                self.aimbot_btn.configure(text="Aimbot: (off)", fg_color="#dc3545", hover_color="#c82333")
+                self.aimbot_btn.configure(text="Detection: (off)", fg_color="#dc3545", hover_color="#c82333")
+                self.mouse_control_check.configure(state="disabled")
+                # Reset mouse control state if worker stops
+                self.mouse_control_var.set(False)
+                self.mouse_status_label.configure(text="Mouse: disabled", text_color="gray")
+
+    # ---------- New method to update HSV entries from outside ----------
+    def update_hsv_entries(self, lower_h, lower_s, lower_v, upper_h, upper_s, upper_v) -> None:
+        """
+        Update the HSV entry fields with new values (in user-friendly scale).
+        This is called from the main window when a target colour is set via the debug window.
+        """
+        self.lower_h_var.set(str(lower_h))
+        self.lower_s_var.set(str(lower_s))
+        self.lower_v_var.set(str(lower_v))
+        self.upper_h_var.set(str(upper_h))
+        self.upper_s_var.set(str(upper_s))
+        self.upper_v_var.set(str(upper_v))
+        # Preview updates will be triggered automatically via trace.
+        logging.debug(f"HSV entries updated from debug: lower=({lower_h},{lower_s},{lower_v}) "
+                      f"upper=({upper_h},{upper_s},{upper_v})")

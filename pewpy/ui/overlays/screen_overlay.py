@@ -56,6 +56,8 @@ class ScreenOverlay(_NativeOverlay) :
         red_pen = CreatePen(0, 2, 0x000000FF)      # color ref: 0x00BBGGRR -> red
         green_pen = CreatePen(0, 2, 0x0000FF00)
         white_pen = CreatePen(0, 1, 0x00FFFFFF)
+        # Yellow for centroid circle (BGR: 0x00FFFF00? Actually 0x00FFFF00 is cyan? BGR: 0x00FF00FF? Let's use 0x0000FFFF = red+green = yellow)
+        yellow_pen = CreatePen(0, 2, 0x0000FFFF)
         old_pen = SelectObject(mem_dc, red_pen)
 
         with self._data_lock:
@@ -91,48 +93,41 @@ class ScreenOverlay(_NativeOverlay) :
                 Ellipse(mem_dc, ox - radius, oy - radius, ox + radius, oy + radius)
                 SelectObject(mem_dc, old_brush)
 
-        # Target render – draw contour outline if available, else centroid circle
+        # Target render – draw centroid circle always, and contour if available
         if shapes.get('target_outline'):
+            target_center = shapes.get('target_center')
             contour = shapes.get('target_contour')
+
+            # Draw a hollow circle around the centroid (always if center exists)
+            if target_center and len(target_center) == 2:
+                tx, ty = target_center
+                radius = 18
+                hollow_brush = gdi32.GetStockObject(5)
+                old_brush2 = SelectObject(mem_dc, hollow_brush)
+                old_pen2 = SelectObject(mem_dc, yellow_pen)
+                Ellipse(mem_dc, tx - radius, ty - radius, tx + radius, ty + radius)
+                SelectObject(mem_dc, old_pen2)
+                SelectObject(mem_dc, old_brush2)
+
+            # Draw contour if available (red outline)
             if contour and len(contour) >= 2:
-                # Draw enemy outline as a polygon
                 logging.debug(f"ScreenOverlay.paint: drawing target contour with {len(contour)} points")
-                contour_pen = CreatePen(0, 2, 0x000000FF)  # red, 2px
-                old_pen2 = SelectObject(mem_dc, contour_pen)
-                # Convert list of (x,y) to array of POINT
+                contour_pen = CreatePen(0, 2, 0x000000FF)  # red
+                old_pen3 = SelectObject(mem_dc, contour_pen)
                 points_array = (POINT * len(contour))()
                 for i, (px, py) in enumerate(contour):
                     points_array[i].x = px
                     points_array[i].y = py
-                # Draw polygon (closed automatically by Polyline if last point != first? We'll ensure closed)
                 gdi32.Polyline(mem_dc, points_array, len(contour))
-                # If the contour is not closed, you could call Polyline again from last to first,
-                # but typical contours from cv2 are closed. We'll leave it.
-                SelectObject(mem_dc, old_pen2)
+                SelectObject(mem_dc, old_pen3)
                 GdiDeleteObject(contour_pen)
-            else:
-                # Fallback: draw centroid circle
-                target_pos = shapes.get('target_outline_pos')
-                if target_pos and len(target_pos) == 2:
-                    logging.debug("ScreenOverlay.paint: no contour, drawing centroid circle")
-                    tx, ty = target_pos
-                    radius = 11
-                    target_red_pen = CreatePen(0, 1, 0x000000FF)
-                    hollow_brush = gdi32.GetStockObject(5)
-                    old_brush2 = SelectObject(mem_dc, hollow_brush)
-                    old_pen2 = SelectObject(mem_dc, target_red_pen)
-                    Ellipse(mem_dc, tx - radius, ty - radius, tx + radius, ty + radius)
-                    SelectObject(mem_dc, old_pen2)
-                    SelectObject(mem_dc, old_brush2)
-                    GdiDeleteObject(target_red_pen)
 
         # ROI circle – drawn when aimbot's Region of Interest is enabled
         if shapes.get('roi_circle'):
             roi_pos = shapes.get('roi_circle_pos')
             roi_radius = shapes.get('roi_circle_radius', 150)
             if roi_pos and len(roi_pos) == 2 and roi_radius > 0:
-                # Use a distinct yellow pen (0x0000FFFF) and a 2‑pixel width
-                roi_pen = CreatePen(0, 2, 0x0000FFFF)   # yellow (BGR: 0x00, 0xFF, 0xFF)
+                roi_pen = CreatePen(0, 2, 0x0000FFFF)   # yellow
                 hollow_brush = gdi32.GetStockObject(5)
                 old_brush = SelectObject(mem_dc, hollow_brush)
                 old_pen = SelectObject(mem_dc, roi_pen)
@@ -149,6 +144,7 @@ class ScreenOverlay(_NativeOverlay) :
         GdiDeleteObject(red_pen)
         GdiDeleteObject(green_pen)
         GdiDeleteObject(white_pen)
+        GdiDeleteObject(yellow_pen)
 
         BitBlt(hdc, 0, 0, w, h, mem_dc, 0, 0, SRCCOPY)
 

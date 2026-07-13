@@ -17,10 +17,13 @@ from pewpy.workers.base import BaseWorker
 
 # ----- Main Class ----- #
 class ScreenCapturer(BaseWorker) :
-    def __init__(self, region: Optional[Tuple[int, int, int, int]] = None, target_fps: int = 60) :
+    def __init__(self, region: Optional[Tuple[int, int, int, int]] = None,
+                 target_fps: int = 60,
+                 output_color: str = "RGB") :   # <-- NEW: output_color parameter
         super().__init__()
         self.region = region
         self.target_fps = target_fps
+        self.output_color = output_color          # store for camera creation
         self.camera = None
         self.frame_buffer = None
         self.frame_lock = threading.Lock()
@@ -36,11 +39,13 @@ class ScreenCapturer(BaseWorker) :
             logging.error("dxcam not available")
             return
         try :
-            self.camera = dxcam.create(region=self.region)
+            # Pass output_color to dxcam.create
+            self.camera = dxcam.create(region=self.region, output_color=self.output_color)
             if self.camera is None :
                 logging.error("Failed to create dxcam camera")
                 return
-            logging.info(f"Screen capturer initialized - Region: {self.region}, FPS: {self.target_fps}")
+            logging.info(f"Screen capturer initialized - Region: {self.region}, FPS: {self.target_fps}, "
+                         f"output_color: {self.output_color}")
         except Exception as e :
             logging.error(f"Camera setup failed: {e}")
             self.camera = None

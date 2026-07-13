@@ -8,6 +8,7 @@ import customtkinter as ctk
 import logging
 import threading
 import time
+import queue
 from .base_tab import BaseTab
 from .debug_window import DebugWindow, DebugWindowHandler
 
@@ -148,7 +149,10 @@ class GeneralTab(BaseTab):
             except Exception as e:
                 data['error'] = str(e)
 
-            self.ui_queue.put_nowait({'type': 'debug_data', 'data': data})
+            try:
+                self.ui_queue.put_nowait({'type': 'debug_data', 'data': data})
+            except queue.Full:
+                logging.warning("UI queue full, dropping diagnostic data")
             time.sleep(2)
 
     def update_debug_info(self, data: dict) -> None :

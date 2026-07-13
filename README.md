@@ -121,10 +121,12 @@ PewPy/
 
 2. **Create virtual environment & activate**
     ```bash
-    python -m venv venv
-    source venv/bin/activate        # Linux / macOS
+    pyenv install 3.14.0 # if not already
+    pyenv local 3.14.0   # sets in use
+    python -m venv venv314
+    source venv314/bin/activate # Linux / macOS
         # or
-    venv\Scripts\activate           # Windows
+    venv314\Scripts\activate    # Windows
     ```
 
 3. **Install dependencies**

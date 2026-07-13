@@ -31,8 +31,8 @@ class ModernMainWindow :
         self.root.geometry("500x610")
         self.root.minsize(460, 380)
 
-        # thread-safe communication
-        self._ui_queue = queue.Queue(maxsize=50)
+        # thread-safe communication – increased queue size to avoid Full errors
+        self._ui_queue = queue.Queue(maxsize=200)
         self._update_thread: Optional[threading.Thread] = None
         self._running = True
 
@@ -155,6 +155,13 @@ class ModernMainWindow :
                 # Forward detection debug info to General tab
                 if 'general' in self.tabs and hasattr(self.tabs['general'], 'update_detection_debug'):
                     self.tabs['general'].update_detection_debug(update.get('data', {}))
+            elif update_type == 'update_hsv_entries':
+                # Update the Aimbot tab's HSV entry fields with new values
+                if 'aimbot' in self.tabs and hasattr(self.tabs['aimbot'], 'update_hsv_entries'):
+                    self.tabs['aimbot'].update_hsv_entries(
+                        update.get('lower_h'), update.get('lower_s'), update.get('lower_v'),
+                        update.get('upper_h'), update.get('upper_s'), update.get('upper_v')
+                    )
         except Exception as e :
             logging.error(f"Failed to apply UI update: {e}")
 
@@ -231,7 +238,7 @@ class ModernMainWindow :
                     logging.error(f"Stats overlay update failed: {e}")
             self.root.after(1000, update_stats)
 
-        # Screen overlay update at ~30 fps
+        # Screen overlay update at ~16 fps (60ms)
         def update_screen():
             if self._screen_visible and self.screen_overlay:
                 try:
@@ -249,25 +256,16 @@ class ModernMainWindow :
                     if self._target_render_enabled:
                         target_center = drawing_data.get('target_center')
                         contour = drawing_data.get('target_contour')
-                        logging.debug(
-                            f"Target render update: target_center={target_center}, "
-                            f"contour points={len(contour) if contour else 0}"
-                        )
                         if contour:
-                            # Send contour for outline drawing
                             drawing_data['target_outline'] = True
                             drawing_data['target_contour'] = contour
-                            logging.debug("Target render: contour found, setting target_outline=True")
                         else:
-                            # Fallback to centroid circle if no contour
                             drawing_data['target_outline'] = True
-                            drawing_data['target_outline_pos'] = target_center
-                            logging.debug("Target render: no contour, falling back to centroid circle")
+                            drawing_data['target_center'] = target_center
                     else:
-                        # If target render disabled, explicitly clear contour
                         drawing_data['target_outline'] = False
 
-                    # ROI circle – draw when ROI is enabled (aimbot does not need to be running)
+                    # ROI circle
                     aimbot = self.app.workers.get('aimbot')
                     if aimbot and getattr(aimbot, 'roi_enabled', False):
                         pos = self._mouse.position if self._mouse else (0, 0)
@@ -281,10 +279,10 @@ class ModernMainWindow :
                     self.screen_overlay.update_drawings(drawing_data)
                 except Exception as e:
                     logging.error(f"Screen overlay update failed: {e}")
-            self.root.after(33, update_screen)
+            self.root.after(60, update_screen)
 
         self.root.after(1000, update_stats)
-        self.root.after(33, update_screen)
+        self.root.after(60, update_screen)
 
     def _collect_diagnostics(self) -> Dict[str, Any]:
         data = {}
